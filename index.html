@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EduVerse — AI-Powered Immersive Learning Platform</title>
+  <meta name="description" content="EduVerse: A research-level education platform combining WebAR experiential learning, AI teaching assistant, skill barter marketplace, and student analytics." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/styles/design-system.css" />
+  <link rel="stylesheet" href="/src/styles/components.css" />
+  <link rel="stylesheet" href="/src/styles/ar-learning.css" />
+  <link rel="stylesheet" href="/src/styles/ai-assistant.css" />
+  <link rel="stylesheet" href="/src/styles/skill-barter.css" />
+  <link rel="stylesheet" href="/src/styles/analytics.css" />
+  <link rel="stylesheet" href="/src/styles/communication.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar Navigation -->
+    <nav id="sidebar" class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 40 40" fill="none">
+            <defs>
+              <linearGradient id="brandGrad" x1="0" y1="0" x2="40" y2="40">
+                <stop offset="0%" stop-color="#7C3AED"/>
+                <stop offset="100%" stop-color="#06B6D4"/>
+              </linearGradient>
+            </defs>
+            <circle cx="20" cy="20" r="18" stroke="url(#brandGrad)" stroke-width="2.5" fill="none"/>
+            <path d="M14 26V14l14 6-14 6z" fill="url(#brandGrad)" opacity="0.9"/>
+          </svg>
+        </div>
+        <span class="brand-name">EduVerse</span>
+      </div>
+
+      <div class="nav-links">
+        <a href="#/" class="nav-link active" data-route="home" id="nav-home">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          </span>
+          <span class="nav-label">Home</span>
+        </a>
+        <a href="#/ar-learning" class="nav-link" data-route="ar-learning" id="nav-ar">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 1h6v6H1zM17 1h6v6h-6zM1 17h6v6H1z"/><path d="M21 17v4a2 2 0 01-2 2h-4"/><path d="M17 21h4"/><circle cx="12" cy="12" r="3"/><path d="M12 5v2M12 17v2M5 12h2M17 12h2"/></svg>
+          </span>
+          <span class="nav-label">AR Learning</span>
+        </a>
+        <a href="#/ai-assistant" class="nav-link" data-route="ai-assistant" id="nav-ai">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 014 4v2a4 4 0 01-8 0V6a4 4 0 014-4z"/><path d="M6 10v1a6 6 0 0012 0v-1"/><path d="M12 17v4"/><path d="M8 21h8"/><circle cx="9" cy="7" r="1" fill="currentColor"/><circle cx="15" cy="7" r="1" fill="currentColor"/></svg>
+          </span>
+          <span class="nav-label">AI Assistant</span>
+        </a>
+        <a href="#/skill-barter" class="nav-link" data-route="skill-barter" id="nav-barter">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"/><path d="M21 3l-7 7"/><path d="M8 21H3v-5"/><path d="M3 21l7-7"/><circle cx="12" cy="12" r="3"/></svg>
+          </span>
+          <span class="nav-label">Skill Barter</span>
+        </a>
+        <a href="#/analytics" class="nav-link" data-route="analytics" id="nav-analytics">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/><rect x="1" y="1" width="22" height="22" rx="3"/></svg>
+          </span>
+          <span class="nav-label">Analytics</span>
+        </a>
+        <a href="#/communication" class="nav-link" data-route="communication" id="nav-comm">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><path d="M8 9h8"/><path d="M8 13h4"/></svg>
+          </span>
+          <span class="nav-label">Communication</span>
+        </a>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar">S</div>
+          <div class="user-info">
+            <span class="user-name">Student</span>
+            <span class="user-role">Researcher</span>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main id="main-content" class="main-content">
+      <div id="page-container" class="page-container"></div>
+    </main>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script type="module" src="/src/js/app.js"></script>
+</body>
+</html>
