@@ -1050,7 +1050,553 @@ const modelBuilders = {
     shapes.forEach((s, i) => { s.position.x = (i - 1.5) * 1.5; scene.add(s); });
     return (time) => { shapes.forEach((s, i) => { s.rotation.x = time * (0.3 + i*0.1); s.rotation.y = time * (0.2 + i*0.15); }); };
   },
-  
+
+  // ========== MORE PHYSICS MODELS ==========
+  waves: (scene) => {
+    const waveGroup = new THREE.Group();
+    const amplitude = 0.5, frequency = 2;
+    const graphGeo = new THREE.BufferGeometry();
+    const vertices = [];
+    const indices = [];
+
+    for (let x = -5; x <= 5; x += 0.2) {
+      for (let z = -5; z <= 5; z += 0.2) {
+        const y = Math.sin(x * frequency + z * frequency) * amplitude;
+        vertices.push(x, y, z);
+      }
+    }
+
+    const vertexCount = Math.sqrt(vertices.length / 3);
+    for (let i = 0; i < vertexCount - 1; i++) {
+      for (let j = 0; j < vertexCount - 1; j++) {
+        const a = i * vertexCount + j;
+        const b = i * vertexCount + (j + 1);
+        const c = (i + 1) * vertexCount + j;
+        const d = (i + 1) * vertexCount + (j + 1);
+        indices.push(a, c, b);
+        indices.push(b, c, d);
+      }
+    }
+
+    graphGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+    graphGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
+    graphGeo.computeVertexNormals();
+
+    const waveMat = new THREE.MeshPhysicalMaterial({
+      color: 0x06B6D4,
+      wireframe: false,
+      emissive: 0x06B6D4,
+      emissiveIntensity: 0.2,
+      metalness: 0.3
+    });
+    const waveMesh = new THREE.Mesh(graphGeo, waveMat);
+    waveGroup.add(waveMesh);
+    scene.add(waveGroup);
+
+    return (time) => {
+      waveGroup.rotation.x = Math.sin(time * 0.3) * 0.3;
+      waveGroup.rotation.y = time * 0.2;
+    };
+  },
+
+  electricField: (scene) => {
+    const fieldGroup = new THREE.Group();
+    const charges = [
+      { pos: new THREE.Vector3(-1.5, 0, 0), charge: 1, color: 0xEF4444 },
+      { pos: new THREE.Vector3(1.5, 0, 0), charge: -1, color: 0x3B82F6 }
+    ];
+
+    charges.forEach(({ pos, charge, color }) => {
+      const charge3D = new THREE.Mesh(
+        new THREE.SphereGeometry(0.3, 32, 32),
+        new THREE.MeshPhysicalMaterial({
+          color, emissive: color, emissiveIntensity: 0.5, metalness: 0.8
+        })
+      );
+      charge3D.position.copy(pos);
+      fieldGroup.add(charge3D);
+
+      const fieldLines = 8;
+      for (let i = 0; i < fieldLines; i++) {
+        const angle = (i / fieldLines) * Math.PI * 2;
+        const points = [];
+        for (let r = 0.4; r <= 2; r += 0.1) {
+          points.push(new THREE.Vector3(
+            pos.x + Math.cos(angle) * r,
+            pos.y + Math.sin(angle) * r * 0.5,
+            pos.z
+          ));
+        }
+        const lineMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6 });
+        const teleportGeo = new THREE.BufferGeometry().setFromPoints(points);
+        fieldGroup.add(new THREE.Line(teleportGeo, lineMat));
+      }
+    });
+
+    scene.add(fieldGroup);
+    return (time) => {
+      fieldGroup.rotation.y = time * 0.2;
+    };
+  },
+
+  // ========== MORE BIOLOGY MODELS ==========
+  mitochondrion: (scene) => {
+    const mitoGroup = new THREE.Group();
+    
+    const outerMembrane = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(1, 4),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x059669,
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.DoubleSide
+      })
+    );
+    mitoGroup.add(outerMembrane);
+
+    // ATP synthase complexes
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const atpSynthase = new THREE.Mesh(
+        new THREE.ConeGeometry(0.1, 0.3, 8),
+        new THREE.MeshPhysicalMaterial({ color: 0xEC4899, emissive: 0xEC4899, emissiveIntensity: 0.6 })
+      );
+      atpSynthase.position.set(Math.cos(angle) * 0.9, Math.sin(angle) * 0.4, 0.1);
+      atpSynthase.rotation.z = angle;
+      mitoGroup.add(atpSynthase);
+    }
+
+    // Cristae (inner membrane folds)
+    for (let i = 0; i < 6; i++) {
+      const cristaePlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.5, 0.8),
+        new THREE.MeshPhysicalMaterial({
+          color: 0x10B981,
+          transparent: true,
+          opacity: 0.5,
+          side: THREE.DoubleSide
+        })
+      );
+      const angle = (i / 6) * Math.PI * 2;
+      cristaePlane.position.set(
+        Math.cos(angle) * 0.5,
+        Math.sin(angle) * 0.3,
+        Math.cos(angle * 2) * 0.3
+      );
+      cristaePlane.rotation.z = angle;
+      mitoGroup.add(cristaePlane);
+    }
+
+    // ATP particles
+    for (let i = 0; i < 20; i++) {
+      const atp = new THREE.Mesh(
+        new THREE.SphereGeometry(0.05, 8, 8),
+        new THREE.MeshBasicMaterial({ color: 0xFCD34D, emissive: 0xFCD34D })
+      );
+      atp.position.set(
+        (Math.random() - 0.5) * 1.5,
+        (Math.random() - 0.5) * 1,
+        (Math.random() - 0.5) * 1
+      );
+      mitoGroup.add(atp);
+    }
+
+    scene.add(mitoGroup);
+    return (time) => {
+      mitoGroup.rotation.x = time * 0.15;
+      mitoGroup.rotation.y = time * 0.25;
+    };
+  },
+
+  enzyme: (scene) => {
+    const enzymeGroup = new THREE.Group();
+
+    // Enzyme active site (pocket)
+    const activeSite = new THREE.Mesh(
+      new THREE.TorusGeometry(0.6, 0.2, 16, 32),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xF59E0B,
+        metalness: 0.6,
+        roughness: 0.2,
+        emissive: 0xF59E0B,
+        emissiveIntensity: 0.3
+      })
+    );
+    enzymeGroup.add(activeSite);
+
+    // Substrate approaching
+    const substrate = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.15),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x3B82F6,
+        emissive: 0x3B82F6,
+        emissiveIntensity: 0.5
+      })
+    );
+    substrate.userData.floatDistance = 0;
+    enzymeGroup.add(substrate);
+
+    // Regulatory sites
+    for (let i = 0; i < 3; i++) {
+      const regSite = new THREE.Mesh(
+        new THREE.SphereGeometry(0.08, 16, 16),
+        new THREE.MeshPhysicalMaterial({ color: 0x10B981 })
+      );
+      const angle = (i / 3) * Math.PI * 2;
+      regSite.position.set(Math.cos(angle) * 0.5, Math.sin(angle) * 0.5, 0);
+      enzymeGroup.add(regSite);
+    }
+
+    scene.add(enzymeGroup);
+    return (time) => {
+      substrate.position.x = Math.cos(time * 0.5) * 1.2;
+      enzymeGroup.rotation.z = time * 0.1;
+    };
+  },
+
+  // ========== MORE CHEMISTRY MODELS ==========
+  methane: (scene) => {
+    const methaneGroup = new THREE.Group();
+
+    // Carbon nucleus
+    const carbon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 32, 32),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x1F2937,
+        emissive: 0x374151,
+        emissiveIntensity: 0.4,
+        metalness: 0.7
+      })
+    );
+    methaneGroup.add(carbon);
+
+    // 4 Hydrogen atoms in tetrahedral arrangement
+    const hydrogenPositions = [
+      [0.6, 0.6, 0.6],
+      [-0.6, -0.6, 0.6],
+      [-0.6, 0.6, -0.6],
+      [0.6, -0.6, -0.6]
+    ];
+
+    hydrogenPositions.forEach(([x, y, z]) => {
+      const hydrogen = new THREE.Mesh(
+        new THREE.SphereGeometry(0.15, 16, 16),
+        new THREE.MeshPhysicalMaterial({
+          color: 0xF8FAFC,
+          emissive: 0xF8FAFC,
+          emissiveIntensity: 0.3,
+          metalness: 0.6
+        })
+      );
+      hydrogen.position.set(x, y, z);
+      methaneGroup.add(hydrogen);
+
+      // Covalent bonds
+      const bond = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.08, Math.sqrt(x*x + y*y + z*z), 16),
+        new THREE.MeshBasicMaterial({
+          color: 0xFF8C00,
+          transparent: true,
+          opacity: 0.7
+        })
+      );
+      bond.position.set(x / 2, y / 2, z / 2);
+      bond.lookAt(hydrogen.position);
+      methaneGroup.add(bond);
+    });
+
+    scene.add(methaneGroup);
+    return (time) => {
+      methaneGroup.rotation.x = time * 0.4;
+      methaneGroup.rotation.y = time * 0.3;
+    };
+  },
+
+  ionicBonds: (scene) => {
+    const ionicGroup = new THREE.Group();
+
+    // Positive ion (Na+)
+    const posIon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.4, 32, 32),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xEF4444,
+        emissive: 0xEF4444,
+        emissiveIntensity: 0.5
+      })
+    );
+    posIon.position.x = -1;
+    ionicGroup.add(posIon);
+
+    // Electron transfer visualization
+    const electronTransfer = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xFCD34D, emissive: 0xFCD34D })
+    );
+    ionicGroup.add(electronTransfer);
+
+    // Negative ion (Cl-)
+    const negIon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.4, 32, 32),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x3B82F6,
+        emissive: 0x3B82F6,
+        emissiveIntensity: 0.5
+      })
+    );
+    negIon.position.x = 1;
+    ionicGroup.add(negIon);
+
+    // Attractive force lines
+    for (let i = 0; i < 5; i++) {
+      const line = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.02, 1.5, 8),
+        new THREE.MeshBasicMaterial({
+          color: 0xEC4899,
+          transparent: true,
+          opacity: 0.3 + (i * 0.1)
+        })
+      );
+      line.position.y = (i - 2) * 0.3;
+      ionicGroup.add(line);
+    }
+
+    scene.add(ionicGroup);
+    return (time) => {
+      posIon.position.y = Math.sin(time * 0.5) * 0.2;
+      negIon.position.y = -Math.sin(time * 0.5) * 0.2;
+      electronTransfer.position.x = Math.cos(time * 0.8) * 1.5;
+      ionicGroup.rotation.z = time * 0.1;
+    };
+  },
+
+  // ========== MORE ENGINEERING MODELS ==========
+  turbine: (scene) => {
+    const turbineGroup = new THREE.Group();
+
+    // Central rotor
+    const rotor = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.1, 0.1, 2, 32),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x6B7280,
+        metalness: 0.9,
+        roughness: 0.1
+      })
+    );
+    turbineGroup.add(rotor);
+
+    // 4 turbine blades
+    for (let i = 0; i < 4; i++) {
+      const blade = new THREE.Mesh(
+        new THREE.BoxGeometry(0.8, 0.6, 0.08),
+        new THREE.MeshPhysicalMaterial({
+          color: 0x3B82F6,
+          metalness: 0.8,
+          roughness: 0.2
+        })
+      );
+      const angle = (i / 4) * Math.PI * 2;
+      blade.position.set(Math.cos(angle) * 0.3, 0, Math.sin(angle) * 0.3);
+      blade.rotation.z = angle;
+      turbineGroup.add(blade);
+    }
+
+    // Power output indicator
+    const powerRing = new THREE.Mesh(
+      new THREE.TorusGeometry(1.5, 0.1, 32, 64),
+      new THREE.MeshBasicMaterial({
+        color: 0x10B981,
+        transparent: true,
+        opacity: 0.6,
+        emissive: 0x10B981
+      })
+    );
+    turbineGroup.add(powerRing);
+
+    scene.add(turbineGroup);
+    return (time) => {
+      turbineGroup.rotation.z = time * 1.5;
+    };
+  },
+
+  // ========== MORE MATH MODELS ==========
+  fractal: (scene) => {
+    const fractalGroup = new THREE.Group();
+
+    const createFractal = (size, depth, maxDepth) => {
+      if (depth > maxDepth) return;
+
+      const box = new THREE.Mesh(
+        new THREE.BoxGeometry(size, size, size),
+        new THREE.MeshPhysicalMaterial({
+          color: new THREE.Color().setHSL(depth / maxDepth, 0.8, 0.5),
+          metalness: 0.4,
+          roughness: 0.3,
+          wireframe: false
+        })
+      );
+
+      if (depth === 0) fractalGroup.add(box);
+      else {
+        for (let x = -1; x <= 1; x++) {
+          for (let y = -1; y <= 1; y++) {
+            for (let z = -1; z <= 1; z++) {
+              if (Math.abs(x) !== 1 || Math.abs(y) !== 1 || Math.abs(z) !== 1) continue;
+              const childBox = new THREE.Mesh(box.geometry, box.material.clone());
+              childBox.scale.set(1/3, 1/3, 1/3);
+              childBox.position.set(
+                x * size / 3,
+                y * size / 3,
+                z * size / 3
+              );
+              fractalGroup.add(childBox);
+            }
+          }
+        }
+      }
+
+      if (depth < maxDepth - 1) {
+        for (let x = -1; x <= 1; x += 2) {
+          for (let y = -1; y <= 1; y += 2) {
+            for (let z = -1; z <= 1; z += 2) {
+              createFractal(size / 3, depth + 1, maxDepth);
+            }
+          }
+        }
+      }
+    };
+
+    createFractal(1, 0, 2);
+    scene.add(fractalGroup);
+
+    return (time) => {
+      fractalGroup.rotation.x = time * 0.2;
+      fractalGroup.rotation.y = time * 0.3;
+    };
+  },
+
+  topology: (scene) => {
+    const topoGroup = new THREE.Group();
+
+    // Generate Möbius strip
+    const mobGeo = new THREE.BufferGeometry();
+    const vertices = [];
+    const indices = [];
+
+    const segments = 40, loops = 2;
+    for (let i = 0; i <= segments; i++) {
+      for (let j = 0; j <= loops * Math.PI * 2; j += 0.2) {
+        const u = i / segments;
+        const v = j / (loops * Math.PI * 2);
+        const x = (1 + u * Math.cos(v / 2)) * Math.cos(v);
+        const y = u * Math.sin(v / 2);
+        const z = (1 + u * Math.cos(v / 2)) * Math.sin(v);
+        vertices.push(x, y, z);
+      }
+    }
+
+    mobGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+    const mobMat = new THREE.MeshPhysicalMaterial({
+      color: 0x8B5CF6,
+      side: THREE.DoubleSide,
+      metalness: 0.5,
+      roughness: 0.2,
+      emissive: 0x8B5CF6,
+      emissiveIntensity: 0.3
+    });
+
+    const mobius = new THREE.Mesh(mobGeo, mobMat);
+    topoGroup.add(mobius);
+    scene.add(topoGroup);
+
+    return (time) => {
+      topoGroup.rotation.x = time * 0.3;
+      topoGroup.rotation.y = time * 0.2;
+    };
+  },
+
+  // ========== MORE HISTORY MODELS ==========
+  sphinx: (scene) => {
+    const sphinxGroup = new THREE.Group();
+
+    // Body (lion)
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(2, 1, 3),
+      new THREE.MeshStandardMaterial({ color: 0xD4A574, roughness: 0.8 })
+    );
+    body.position.z = -0.5;
+    sphinxGroup.add(body);
+
+    // Head (human)
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.6, 32, 32),
+      new THREE.MeshStandardMaterial({ color: 0xC4A060, roughness: 0.7 })
+    );
+    head.position.set(0, 1.2, 0.5);
+    sphinxGroup.add(head);
+
+    // Wings
+    for (let side of [-1, 1]) {
+      const wing = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 2),
+        new THREE.MeshStandardMaterial({
+          color: 0xA08060,
+          roughness: 0.6,
+          side: THREE.DoubleSide
+        })
+      );
+      wing.position.set(side * 1.2, 1, -0.5);
+      wing.rotation.y = side * Math.PI / 6;
+      sphinxGroup.add(wing);
+    }
+
+    scene.add(sphinxGroup);
+    return (time) => {
+      sphinxGroup.rotation.y = time * 0.15;
+    };
+  },
+
+  romanArch: (scene) => {
+    const archGroup = new THREE.Group();
+
+    // Support columns
+    for (let x of [-1.5, 1.5]) {
+      const column = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.2, 0.25, 2, 32),
+        new THREE.MeshStandardMaterial({ color: 0xD4A574, roughness: 0.7 })
+      );
+      column.position.x = x;
+      column.position.y = -1;
+      archGroup.add(column);
+    }
+
+    // Arch structure
+    const archSegments = 16;
+    const archRadius = 1.5;
+    for (let i = 0; i < archSegments; i++) {
+      const angle = (i / archSegments) * Math.PI;
+      const nextAngle = ((i + 1) / archSegments) * Math.PI;
+      const x1 = Math.cos(angle - Math.PI / 2) * archRadius;
+      const y1 = Math.sin(angle - Math.PI / 2) * archRadius + 1;
+      const x2 = Math.cos(nextAngle - Math.PI / 2) * archRadius;
+      const y2 = Math.sin(nextAngle - Math.PI / 2) * archRadius + 1;
+
+      const voussoir = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, 0.25, 0.3),
+        new THREE.MeshStandardMaterial({
+          color: new THREE.Color().setHSL(i / archSegments, 0.5, 0.6),
+          roughness: 0.7
+        })
+      );
+      voussoir.position.set((x1 + x2) / 2, (y1 + y2) / 2, 0);
+      archGroup.add(voussoir);
+    }
+
+    scene.add(archGroup);
+    return (time) => {
+      archGroup.rotation.y = time * 0.15;
+    };
+  },
+
   pyramid: (scene) => {
     const pyGeo = new THREE.ConeGeometry(2.5, 3.5, 4);
     const pyMat = new THREE.MeshPhysicalMaterial({ color: 0xF59E0B, roughness: 0.8 });
