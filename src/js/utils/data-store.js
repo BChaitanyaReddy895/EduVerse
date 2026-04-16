@@ -384,27 +384,38 @@ class DataStore {
       { id: 'physics', name: 'Physics', icon: '⚛️', color: '#7C3AED', description: 'Explore forces, optics, and quantum mechanics.', difficulty: 'Intermediate', lessons: [
         { id: 'newton', name: 'Newtonian Engine', type: '3D', mastery: 0 },
         { id: 'optics', name: 'Ray Optics', type: 'AR', mastery: 0 },
+        { id: 'atom', name: 'Atomic Model (Bohr)', type: 'AR', mastery: 0 },
         { id: 'waves', name: 'Wave Dynamics', type: '3D', mastery: 0 },
-        { id: 'atom', name: 'Atomic Model', type: 'AR', mastery: 0 }
+        { id: 'electricField', name: 'Electric Fields & Forces', type: '3D', mastery: 0 }
       ]},
       { id: 'biology', name: 'Biology', icon: '🧬', color: '#10B981', description: 'Dive into cell structures in deep 3D.', difficulty: 'Intermediate', lessons: [
-        { id: 'cell', name: 'Cell Structure', type: 'AR', mastery: 0 }
+        { id: 'cell', name: 'Cell Structure', type: 'AR', mastery: 0 },
+        { id: 'dna', name: 'DNA & Genetics', type: '3D', mastery: 0 },
+        { id: 'mitochondrion', name: 'Mitochondrial Energy', type: '3D', mastery: 0 },
+        { id: 'enzyme', name: 'Enzyme Kinetics', type: '3D', mastery: 0 }
       ]},
       { id: 'chemistry', name: 'Chemistry', icon: '🧪', color: '#EF4444', description: 'Visualize molecular bonds.', difficulty: 'Intermediate', lessons: [
         { id: 'water', name: 'Water Molecule', type: '3D', mastery: 0 },
-        { id: 'bonds', name: 'Chemical Bonds', type: 'AR', mastery: 0 }
+        { id: 'bonds', name: 'Chemical Bonds', type: 'AR', mastery: 0 },
+        { id: 'methane', name: 'Methane & Alkanes', type: '3D', mastery: 0 },
+        { id: 'ionicBonds', name: 'Ionic Bonding', type: '3D', mastery: 0 }
       ]},
       { id: 'engineering', name: 'Engineering', icon: '⚙️', color: '#06B6D4', description: 'Understand mechanical systems.', difficulty: 'Advanced', lessons: [
         { id: 'gears', name: 'Gear Systems', type: 'AR', mastery: 0 },
-        { id: 'bridges', name: 'Bridge Structures', type: '3D', mastery: 0 }
+        { id: 'bridges', name: 'Bridge Structures', type: '3D', mastery: 0 },
+        { id: 'turbine', name: 'Turbine Design', type: '3D', mastery: 0 }
       ]},
       { id: 'math', name: 'Mathematics', icon: '📐', color: '#3B82F6', description: 'Grasp calculus and geometry.', difficulty: 'Advanced', lessons: [
         { id: 'calculus', name: '3D Calculus', type: '3D', mastery: 0 },
-        { id: 'geometry', name: 'Solid Geometry', type: 'AR', mastery: 0 }
+        { id: 'geometry', name: 'Solid Geometry', type: 'AR', mastery: 0 },
+        { id: 'fractal', name: 'Fractal Geometry', type: '3D', mastery: 0 },
+        { id: 'topology', name: 'Topological Surfaces', type: '3D', mastery: 0 }
       ]},
       { id: 'history', name: 'History', icon: '🏛️', color: '#F59E0B', description: 'Walk through ancient civilizations.', difficulty: 'Beginner', lessons: [
         { id: 'pyramid', name: 'Egyptian Pyramids', type: 'AR', mastery: 0 },
-        { id: 'colosseum', name: 'Roman Colosseum', type: '3D', mastery: 0 }
+        { id: 'colosseum', name: 'Roman Colosseum', type: '3D', mastery: 0 },
+        { id: 'sphinx', name: 'Sphinx Symbolism', type: '3D', mastery: 0 },
+        { id: 'romanArch', name: 'Roman Architecture', type: '3D', mastery: 0 }
       ]}
     ];
   }
