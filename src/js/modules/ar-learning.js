@@ -2070,46 +2070,154 @@ function getQuizForLesson(subjectId, lessonId) {
         { question: "What is Newton's First Law of Motion?", options: ['Law of Inertia', 'F = ma', 'Action-Reaction', 'Law of Gravity'], answer: 0 },
         { question: 'What unit measures force?', options: ['Joule', 'Watt', 'Newton', 'Pascal'], answer: 2 },
         { question: 'A body at rest stays at rest unless acted upon by?', options: ['Gravity only', 'An external force', 'Friction', 'Momentum'], answer: 1 },
+        { question: 'Newton\'s Second Law states F equals?', options: ['ma', 'mv', 'm/a', 'a/m'], answer: 0 },
       ],
       atom: [
         { question: 'Who proposed the planetary model of the atom?', options: ['Thomson', 'Rutherford', 'Bohr', 'Dalton'], answer: 2 },
         { question: 'Electrons orbit the nucleus in?', options: ['Random paths', 'Fixed energy levels', 'Straight lines', 'Spirals'], answer: 1 },
         { question: 'What charge does a proton carry?', options: ['Negative', 'Neutral', 'Positive', 'Variable'], answer: 2 },
+        { question: 'The Bohr model has how many electron shells?', options: ['Infinite', 'Fixed maximum', 'Two types', 'Just one'], answer: 0 },
       ],
       optics: [
         { question: 'A convex lens converges light to the?', options: ['Center', 'Focus', 'Edge', 'Vertex'], answer: 1 },
         { question: 'The angle of incidence equals?', options: ['Angle of refraction', 'Angle of reflection', 'Critical angle', 'Zero'], answer: 1 },
+        { question: 'Refraction occurs when light passes through?', options: ['Mirror', 'Different medium', 'Air', 'Vacuum'], answer: 1 },
       ],
       waves: [
         { question: 'What is the SI unit of frequency?', options: ['Meter', 'Hertz', 'Second', 'Decibel'], answer: 1 },
         { question: 'Sound waves are?', options: ['Transverse', 'Longitudinal', 'Electromagnetic', 'Surface'], answer: 1 },
+        { question: 'Wavelength × frequency equals?', options: ['Energy', 'Wave speed', 'Amplitude', 'Period'], answer: 1 },
+        { question: 'Visible light has wavelengths around?', options: ['400-700 nm', '1-10 μm', '100-200 nm', 'Micrometers'], answer: 0 },
+      ],
+      electricField: [
+        { question: 'Electric field lines point from?', options: ['Negative to positive', 'Positive to negative', 'Random', 'Inward'], answer: 1 },
+        { question: 'The electric field is strongest where lines are?', options: ['Sparse', 'Dense', 'Parallel', 'Curved'], answer: 1 },
+        { question: 'Opposite charges?', options: ['Repel', 'Attract', 'Ignore each other', 'Orbit'], answer: 1 },
+        { question: 'Electric field is measured in?', options: ['Coulombs', 'Newtons/Coulomb', 'Volts', 'Amperes'], answer: 1 },
       ]
     },
     chemistry: {
-      bonds: [{ question: 'Ionic bonds form between?', options: ['Two metals', 'Metal and nonmetal', 'Two nonmetals', 'Noble gases'], answer: 1 },
-        { question: 'Covalent bonds involve?', options: ['Transfer of electrons', 'Sharing of electrons', 'Nuclear fusion', 'Magnetic attraction'], answer: 1 }],
-      water: [{ question: 'The bond angle in water is approximately?', options: ['90°', '104.5°', '120°', '180°'], answer: 1 },
-        { question: 'Water is a?', options: ['Nonpolar molecule', 'Polar molecule', 'Ionic compound', 'Metal'], answer: 1 }],
+      bonds: [
+        { question: 'Ionic bonds form between?', options: ['Two metals', 'Metal and nonmetal', 'Two nonmetals', 'Noble gases'], answer: 1 },
+        { question: 'Covalent bonds involve??', options: ['Transfer of electrons', 'Sharing of electrons', 'Nuclear fusion', 'Magnetic attraction'], answer: 1 },
+        { question: 'In ionic bonds, electrons are?', options: ['Shared equally', 'Transferred', 'Deleted', 'Duplicated'], answer: 1 },
+      ],
+      water: [
+        { question: 'The bond angle in water is approximately??', options: ['90°', '104.5°', '120°', '180°'], answer: 1 },
+        { question: 'Water is a??', options: ['Nonpolar molecule', 'Polar molecule', 'Ionic compound', 'Metal'], answer: 1 },
+        { question: 'Water molecule has?', options: ['2 atoms', '3 atoms', '4 atoms', '6 atoms'], answer: 1 },
+        { question: 'Hydrogen bonding occurs between?', options: ['H and C', 'H and O', 'O and O', 'C and N'], answer: 1 },
+      ],
+      methane: [
+        { question: 'Methane (CH₄) has how many hydrogen atoms?', options: ['2', '3', '4', '5'], answer: 2 },
+        { question: 'Methane has what geometry?', options: ['Planar', 'Linear', 'Tetrahedral', 'Trigonal'], answer: 2 },
+        { question: 'The C-H bond angle in methane is??', options: ['90°', '109.5°', '120°', '180°'], answer: 1 },
+        { question: 'Methane is the main component of?', options: ['Oil', 'Coal', 'Natural gas', 'Plastic'], answer: 2 },
+      ],
+      ionicBonds: [
+        { question: 'NaCl forms through?', options: ['Covalent bonding', 'Metallic bonding', 'Ionic bonding', 'Hydrogen bonding'], answer: 2 },
+        { question: 'In ionic bonding, one atom is a?', options: ['Metal', 'Nonmetal', 'Metalloid', 'Noble gas'], answer: 0 },
+        { question: 'Ionic bonds are strong because of?', options: ['Shared electrons', 'Electrostatic attraction', 'Nuclei proximity', 'Dipole moments'], answer: 1 },
+        { question: 'Ionic compounds typically form??', options: ['Liquids', 'Gases', 'Crystals', 'Plasma'], answer: 2 },
+      ]
     },
     biology: {
-      cell: [{ question: 'The powerhouse of the cell is?', options: ['Nucleus', 'Ribosome', 'Mitochondria', 'Golgi'], answer: 2 },
-        { question: 'Cell membrane is made of?', options: ['Carbohydrates', 'Phospholipid bilayer', 'Protein only', 'DNA'], answer: 1 }],
-      dna: [{ question: 'DNA stands for?', options: ['Deoxyribonucleic Acid', 'Dinitrogen Acid', 'Dynamic Nuclear Acid', 'None'], answer: 0 },
-        { question: 'DNA double helix was discovered by?', options: ['Mendel', 'Watson & Crick', 'Darwin', 'Pasteur'], answer: 1 }],
+      cell: [
+        { question: 'The powerhouse of the cell is?', options: ['Nucleus', 'Ribosome', 'Mitochondria', 'Golgi'], answer: 2 },
+        { question: 'Cell membrane is made of??', options: ['Carbohydrates', 'Phospholipid bilayer', 'Protein only', 'DNA'], answer: 1 },
+        { question: 'The nucleus contains??', options: ['Proteins only', 'DNA', 'Ribosomes', 'Lipids'], answer: 1 },
+        { question: 'Plant cells have which organelle animals lack?', options: ['Mitochondria', 'Chloroplast', 'Ribosome', 'Nucleus'], answer: 1 },
+      ],
+      dna: [
+        { question: 'DNA stands for??', options: ['Deoxyribonucleic Acid', 'Dinitrogen Acid', 'Dynamic Nuclear Acid', 'None'], answer: 0 },
+        { question: 'DNA double helix was discovered by??', options: ['Mendel', 'Watson & Crick', 'Darwin', 'Pasteur'], answer: 1 },
+        { question: 'DNA base pairs are??', options: ['A-T and G-C', 'A-G and T-C', 'A-A and G-G', 'Random'], answer: 0 },
+        { question: 'DNA stands for??', options: ['Deoxyribonucleic Acid', 'Dinitrogen Acid', 'Dynamic Nuclear Acid', 'None'], answer: 0 },
+      ],
+      mitochondrion: [
+        { question: 'Mitochondria produce which molecule?', options: ['Glucose', 'ATP', 'Protein', 'Lipid'], answer: 1 },
+        { question: 'ATP synthase is located in the??', options: ['Outer membrane', 'Matrix', 'Inner membrane', 'Intermembrane space'], answer: 2 },
+        { question: 'Cristae are??', options: ['Outer membranes', 'Inner membrane folds', 'Proteins', 'Enzymes'], answer: 1 },
+        { question: 'Mitochondria have how many membranes??', options: ['One', 'Two', 'Three', 'Four'], answer: 1 },
+      ],
+      enzyme: [
+        { question: 'Enzymes are primarily made of?', options: ['Carbohydrates', 'Lipids', 'Proteins', 'Nucleic acids'], answer: 2 },
+        { question: 'The region where substrate binds is?', options: ['Allosteric site', 'Regulatory site', 'Active site', 'Binding pocket'], answer: 2 },
+        { question: 'Enzymes speed up reactions by??', options: ['Adding energy', 'Lowering activation energy', 'Increasing temperature', 'Adding water'], answer: 1 },
+        { question: 'Most enzymes work best at??', options: ['Low pH', 'Optimal pH and temperature', 'High heat', 'Low temperature'], answer: 1 },
+      ]
     },
     engineering: {
-      gears: [{ question: 'Meshing gears rotate in?', options: ['Same direction', 'Opposite directions', 'Random', 'They do not rotate'], answer: 1 },
-        { question: 'Gear ratio determines?', options: ['Color', 'Speed and torque', 'Material', 'Temperature'], answer: 1 }],
-      bridges: [{ question: 'A truss bridge uses?', options: ['Cables', 'Triangular units', 'Arches only', 'Cantilevers'], answer: 1 }],
+      gears: [
+        { question: 'Meshing gears rotate in??', options: ['Same direction', 'Opposite directions', 'Random', 'They do not rotate'], answer: 1 },
+        { question: 'Gear ratio determines??', options: ['Color', 'Speed and torque', 'Material', 'Temperature'], answer: 1 },
+        { question: 'A larger gear rotates??', options: ['Faster', 'Slower', 'Same speed', 'Not at all'], answer: 1 },
+        { question: 'Gears transmit power through??', options: ['Friction', 'Magnetic fields', 'Direct contact', 'Belts'], answer: 2 },
+      ],
+      bridges: [
+        { question: 'A truss bridge uses??', options: ['Cables', 'Triangular units', 'Arches only', 'Cantilevers'], answer: 1 },
+        { question: 'Triangles in trusses are structurally??', options: ['Weak', 'Flexible', 'Rigid', 'Unstable'], answer: 2 },
+        { question: 'Suspension bridges use??', options: ['Trusses', 'Cables and towers', 'Arches', 'Beams'], answer: 1 },
+        { question: 'The longest bridge type is??', options: ['Arch', 'Truss', 'Suspension', 'Beam'], answer: 2 },
+      ],
+      turbine: [
+        { question: 'Wind turbines convert??', options: ['Heat to electricity', 'Kinetic to electrical energy', 'Light to heat', 'Pressure to light'], answer: 1 },
+        { question: 'Turbine blades rotate around??', options: ['A rotor shaft', 'A fixed axis', 'Multiple axes', 'Randomly'], answer: 0 },
+        { question: 'Power output increases with??', options: ['Smaller blades', 'Wind speed cubed', 'Less rotation', 'Lower altitude'], answer: 1 },
+        { question: 'Turbines typically have?? blades', options: ['2-3', '5-6', '8-10', '12+'], answer: 0 },
+      ]
     },
     math: {
-      calculus: [{ question: 'The derivative of x² is?', options: ['x', '2x', 'x³', '2'], answer: 1 },
-        { question: 'Integration is the reverse of?', options: ['Multiplication', 'Differentiation', 'Addition', 'Subtraction'], answer: 1 }],
-      geometry: [{ question: 'A tetrahedron has how many faces?', options: ['3', '4', '5', '6'], answer: 1 }],
+      calculus: [
+        { question: 'The derivative of x² is??', options: ['x', '2x', 'x³', '2'], answer: 1 },
+        { question: 'Integration is the reverse of??', options: ['Multiplication', 'Differentiation', 'Addition', 'Subtraction'], answer: 1 },
+        { question: 'A stationary point occurs when derivative??', options: ['Is positive', 'Equals zero', 'Is negative', 'Increases'], answer: 1 },
+        { question: 'Calculus was developed by??', options: ['Gauss', 'Newton & Leibniz', 'Euclid', 'Pythagoras'], answer: 1 },
+      ],
+      geometry: [
+        { question: 'A tetrahedron has how many faces??', options: ['3', '4', '5', '6'], answer: 1 },
+        { question: 'An octahedron has?? faces', options: ['4', '6', '8', '10'], answer: 2 },
+        { question: 'A dodecahedron has?? faces', options: ['8', '10', '12', '20'], answer: 2 },
+        { question: 'How many Platonic solids exist??', options: ['3', '4', '5', '6'], answer: 2 },
+      ],
+      fractal: [
+        { question: 'Fractals have??', options: ['Finite complexity', 'Self-similarity', 'Straight edges', 'Fixed size'], answer: 1 },
+        { question: 'The Mandelbrot set is a??', options: ['Triangle', 'Fractal', 'Polygon', 'Circle'], answer: 1 },
+        { question: 'Fractals appear in nature in??', options: ['Trees and ferns', 'Snowflakes', 'Coastlines', 'All of above'], answer: 3 },
+        { question: 'Fractal dimension can be??', options: ['Only integer', 'Only 0-3', 'Non-integer', 'Always 2'], answer: 2 },
+      ],
+      topology: [
+        { question: 'A Möbius strip has?? sides', options: ['One', 'Two', 'Three', 'Four'], answer: 0 },
+        { question: 'Topology is the study of??', options: ['Shape and size', 'Properties unchanged by deformation', 'Only geometry', 'Only surfaces'], answer: 1 },
+        { question: 'A torus has?? holes', options: ['Zero', 'One', 'Two', 'Infinite'], answer: 1 },
+        { question: 'Topology cares about??', options: ['Angles', 'Distances', 'Connectedness', 'Color'], answer: 2 },
+      ]
     },
     history: {
-      pyramid: [{ question: 'The Great Pyramid is in?', options: ['Rome', 'Athens', 'Giza', 'Istanbul'], answer: 2 }],
-      colosseum: [{ question: 'The Colosseum is in?', options: ['Greece', 'Egypt', 'Rome', 'France'], answer: 2 }],
+      pyramid: [
+        { question: 'The Great Pyramid is in??', options: ['Rome', 'Athens', 'Giza', 'Istanbul'], answer: 2 },
+        { question: 'The Great Pyramid was built approximately??', options: ['1000 BC', '2500 BC', '500 AD', '1500 AD'], answer: 1 },
+        { question: 'The largest pyramid by volume is??', options: ['Khufu', 'Khafre', 'Menkaure', 'Bent'], answer: 0 },
+        { question: 'Pyramids were tombs for??', options: ['Warriors', 'Pharaohs', 'Servants', 'Gods'], answer: 1 },
+      ],
+      colosseum: [
+        { question: 'The Colosseum is in??', options: ['Greece', 'Egypt', 'Rome', 'France'], answer: 2 },
+        { question: 'The Colosseum was built in??', options: ['100 BC', '50 AD', '80 AD', '150 AD'], answer: 2 },
+        { question: 'The Colosseum could hold?? spectators', options: ['10,000', '30,000', '50,000-80,000', '100,000+'], answer: 2 },
+        { question: 'Gladiatorial combats occurred??', options: ['Daily', 'Weekly', 'Yearly', 'Rarely'], answer: 0 },
+      ],
+      sphinx: [
+        { question: 'The Great Sphinx is in??', options: ['Cairo', 'Giza', 'Thebes', 'Luxor'], answer: 1 },
+        { question: 'The Sphinx has a body of a??', options: ['Eagle', 'Bull', 'Lion', 'Horse'], answer: 2 },
+        { question: 'The Sphinx has a head of a??', options: ['Pharaoh', 'God', 'Human', 'Animal'], answer: 2 },
+        { question: 'Sphinx likely guarded??', options: ['Treasure', 'Pyramid complex', 'City', 'Temple'], answer: 1 },
+      ],
+      romanArch: [
+        { question: 'Roman arches are??', options: ['Squared', 'Triangular', 'Semi-circular', 'Pointed'], answer: 2 },
+        { question: 'The keystone is??', options: ['A support column', 'The central wedge-shaped stone', 'A decorative element', 'The base'], answer: 1 },
+        { question: 'Roman arches distribute weight??', options: ['Downward equally', 'Outward and downward', 'Inward only', 'Upward'], answer: 1 },
+        { question: 'Aqueducts used?? arches', options: ['Flat', 'Pointed', 'Roman arches', 'Vertical'], answer: 2 },
+      ]
     },
   };
   return quizBank[subjectId]?.[lessonId] || [{ question: 'What is this lesson about?', options: ['Learning', 'Testing', 'Playing', 'Sleeping'], answer: 0 }];
