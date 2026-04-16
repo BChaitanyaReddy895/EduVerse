@@ -557,8 +557,79 @@ const modelBuilders = {
   // Circular Orbital Motion
   orbital: (scene) => PhysicsModels.circularMotion(scene),
 
-  // Placeholder for atom (uses SSN nodes instead)
-  atom: () => [],
+  // Bohr Atomic Model - Nucleus with 3 Electron Shells
+  atom: (scene) => {
+    const atomGroup = new THREE.Group();
+    
+    // Nucleus (protons + neutrons)
+    const nucleus = new THREE.Mesh(
+      new THREE.SphereGeometry(0.2, 32, 32),
+      new THREE.MeshPhysicalMaterial({
+        color: 0xEF4444,
+        emissive: 0xEF4444,
+        emissiveIntensity: 0.6,
+        metalness: 0.8
+      })
+    );
+    atomGroup.add(nucleus);
+    
+    // 3 Electron Shells with orbital paths
+    const shellRadii = [0.8, 1.4, 2.0];
+    const shellColors = [0x3B82F6, 0x10B981, 0xF59E0B];
+    const shellElectrons = [2, 8, 8];
+    
+    shellRadii.forEach((radius, shellIndex) => {
+      // Orbital path (torus)
+      const orbitGeo = new THREE.TorusGeometry(radius, 0.03, 16, 32);
+      const orbit = new THREE.Mesh(orbitGeo, new THREE.MeshBasicMaterial({
+        color: shellColors[shellIndex],
+        transparent: true,
+        opacity: 0.2
+      }));
+      atomGroup.add(orbit);
+      
+      // Electrons on this shell
+      const electronCount = shellElectrons[shellIndex];
+      for (let i = 0; i < electronCount; i++) {
+        const angle = (i / electronCount) * Math.PI * 2;
+        const electron = new THREE.Mesh(
+          new THREE.SphereGeometry(0.08, 16, 16),
+          new THREE.MeshPhysicalMaterial({
+            color: shellColors[shellIndex],
+            emissive: shellColors[shellIndex],
+            emissiveIntensity: 0.8,
+            metalness: 0.6
+          })
+        );
+        electron.position.set(
+          Math.cos(angle) * radius,
+          Math.sin(angle) * radius * 0.3,
+          Math.sin(angle * 2) * radius * 0.2
+        );
+        electron.userData.angle = angle;
+        electron.userData.radius = radius;
+        electron.userData.shellIndex = shellIndex;
+        atomGroup.add(electron);
+      }
+    });
+    
+    scene.add(atomGroup);
+    
+    // Animate electron orbits
+    return (time) => {
+      atomGroup.children.forEach((child, idx) => {
+        if (child.userData.radius) {
+          const shellSpeed = 0.5 + child.userData.shellIndex * 0.3;
+          const newAngle = child.userData.angle + time * shellSpeed;
+          child.position.set(
+            Math.cos(newAngle) * child.userData.radius,
+            Math.sin(newAngle) * child.userData.radius * 0.3,
+            Math.sin(newAngle * 2) * child.userData.radius * 0.2
+          );
+        }
+      });
+    };
+  },
 
   // Optics: Refraction & Dispersion
   optics: (scene) => {
@@ -680,40 +751,62 @@ const modelBuilders = {
   // Möbius Strip
   mobiusStrip: (scene) => MathModels.mobiusStrip(scene),
   
-  // Placeholder for calculus
+  // Riemann Sum - Area Under Curve (Integration Concept)
   calculus: (scene) => {
     const group = new THREE.Group();
     
-    // 3D sine wave (parametric curve)
-    const points = [];
-    for (let t = -Math.PI; t <= Math.PI; t += 0.1) {
-      points.push(new THREE.Vector3(t, Math.sin(t), Math.cos(t * 0.5)));
+    // Draw the function curve: y = 0.5 * sin(x) + 0.3 * cos(2x)
+    const curvePoints = [];
+    const step = 0.15;
+    const xMin = -3, xMax = 3;
+    
+    for (let x = xMin; x <= xMax; x += step) {
+      const y = 0.5 * Math.sin(x) + 0.3 * Math.cos(2 * x);
+      curvePoints.push(new THREE.Vector3(x, y, 0));
     }
     
-    const geo = new THREE.BufferGeometry();
-    const tubeGeo = new THREE.TubeGeometry(
-      new THREE.LineCurve3(points[0], points[points.length - 1]),
-      50,
-      0.1,
-      8
-    );
+    // Draw curve as a line
+    const curveGeo = new THREE.BufferGeometry().setFromPoints(curvePoints);
+    const curveMat = new THREE.LineBasicMaterial({ color: 0x7C3AED, linewidth: 3 });
+    const curve = new THREE.Line(curveGeo, curveMat);
+    group.add(curve);
     
-    // Gradient color curve
-    const curveMat = new THREE.MeshPhysicalMaterial({
-      color: 0x8B5CF6,
-      metalness: 0.3,
-      roughness: 0.4,
-      emissive: 0x5B21B6,
-      emissiveIntensity: 0.2
-    });
+    // Draw Riemann rectangles (integration)
+    const rectangleWidth = 0.4;
+    const rectangleCount = Math.floor((xMax - xMin) / rectangleWidth);
     
-    const curveMesh = new THREE.Mesh(tubeGeo, curveMat);
-    group.add(curveMesh);
+    for (let i = 0; i < rectangleCount; i++) {
+      const x = xMin + i * rectangleWidth;
+      const y = 0.5 * Math.sin(x) + 0.3 * Math.cos(2 * x);
+      
+      // Rectangle showing area
+      const rectGeo = new THREE.PlaneGeometry(rectangleWidth * 0.95, Math.abs(y));
+      const rectMat = new THREE.MeshPhysicalMaterial({
+        color: new THREE.Color().setHSL(i / rectangleCount, 0.7, 0.6),
+        transparent: true,
+        opacity: 0.6,
+        emissive: new THREE.Color().setHSL(i / rectangleCount, 0.7, 0.3),
+        emissiveIntensity: 0.4
+      });
+      const rect = new THREE.Mesh(rectGeo, rectMat);
+      rect.position.set(x + rectangleWidth / 2, y / 2, 0.01);
+      group.add(rect);
+    }
+    
+    // X-axis
+    const axisGeo = new THREE.BufferGeometry();
+    axisGeo.setFromPoints([new THREE.Vector3(xMin - 0.5, 0, 0), new THREE.Vector3(xMax + 0.5, 0, 0)]);
+    const axisMat = new THREE.LineBasicMaterial({ color: 0x64748B });
+    group.add(new THREE.Line(axisGeo, axisMat));
+    
+    // Y-axis
+    const yAxisGeo = new THREE.BufferGeometry();
+    yAxisGeo.setFromPoints([new THREE.Vector3(0, -1.5, 0), new THREE.Vector3(0, 1.5, 0)]);
+    group.add(new THREE.Line(yAxisGeo, axisMat));
     
     scene.add(group);
     return (time) => {
-      group.rotation.x = time * 0.2;
-      group.rotation.z = time * 0.3;
+      group.rotation.z = Math.sin(time * 0.5) * 0.05;
     };
   },
   
