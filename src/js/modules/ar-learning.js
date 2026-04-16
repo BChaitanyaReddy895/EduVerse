@@ -820,164 +820,8 @@ const modelBuilders = {
     return (time) => {
       group.rotation.y = time * 0.15;
     };
-  }
-};
-
-// Create fallback for any lesson not explicitly defined
-function getModelBuilder(lessonId) {
-  return modelBuilders[lessonId] || modelBuilders.atom;
-}
-
-export function renderARLearning(container) {
-  sessionStart = Date.now();
-        const orbitNames = ['n=1 (K shell)', 'n=2 (L shell)', 'n=3 (M shell)'];
-        for (let i = 0; i < 3; i++) {
-          const orbitR = 1.2 + i * 0.7;
-          const orbit = new THREE.Mesh(new THREE.TorusGeometry(orbitR, 0.02, 8, 128), new THREE.MeshBasicMaterial({ color: orbitColors[i], transparent: true, opacity: 0.6 }));
-          orbit.rotation.set(Math.PI / 2 + (i * Math.PI / 6), i * Math.PI / 4, 0);
-          orbits.push(orbit); scene.add(orbit);
-          const electron = new THREE.Mesh(new THREE.SphereGeometry(0.15, 32, 32), new THREE.MeshPhongMaterial({ color: 0x67E8F9, emissive: 0x06B6D4, emissiveIntensity: 1.0 }));
-          electron._orbitR = orbitR; electron._i = i;
-          electrons.push(electron); scene.add(electron);
-          // Per-orbit label
-          const oLabel = create3DLabel(orbitNames[i], `#${orbitColors[i].toString(16).padStart(6,'0')}`, 0.3);
-          oLabel.position.set(orbitR + 0.5, 0.4 * i, 0); scene.add(oLabel);
-        }
-        const electronLabel = create3DLabel("Electron Orbits", "#06B6D4", 0.55);
-        electronLabel.position.set(0, 3.0, 0); scene.add(electronLabel);
-        return (time) => {
-          electrons.forEach((e) => {
-            const a = time * (3 - e._i * 0.5);
-            e.position.set(Math.cos(a) * e._orbitR, Math.sin(a) * e._orbitR * Math.cos(e._i * Math.PI / 6), Math.sin(a) * e._orbitR * Math.sin(e._i * Math.PI / 6));
-          });
-        };
-      }
-    },
-    {
-      title: "Quantum Probability Cloud",
-      narrative: "The Schrödinger equation replaces exact orbits with probability density functions |ψ(r)|². Electrons exist as 'clouds' where denser regions indicate higher probability of detection. This is the modern atomic model used in quantum chemistry.",
-      setup: (scene) => {
-        const nucleus = new THREE.Mesh(new THREE.SphereGeometry(0.2, 64, 64), new THREE.MeshPhysicalMaterial({ color: 0x7C3AED, emissive: 0x5B21B6, emissiveIntensity: 0.8 }));
-        scene.add(nucleus);
-        const nucLabel = create3DLabel("Nucleus", "#A78BFA", 0.3);
-        nucLabel.position.set(0, 0.6, 0); scene.add(nucLabel);
-        
-        const cloudGeo = new THREE.BufferGeometry();
-        const cloudPts = [], cloudColors = [];
-        for (let i=0; i<5000; i++) {
-          const r = 0.3 + Math.random() * 2.5;
-          const theta = Math.random() * Math.PI * 2;
-          const phi = Math.acos(2 * Math.random() - 1);
-          cloudPts.push(r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
-          // Color by distance: inner=purple, outer=cyan
-          const t = r / 2.8;
-          cloudColors.push(0.49 + (1-t)*0.2, 0.23 + t*0.7, 0.93);
-        }
-        cloudGeo.setAttribute('position', new THREE.Float32BufferAttribute(cloudPts, 3));
-        cloudGeo.setAttribute('color', new THREE.Float32BufferAttribute(cloudColors, 3));
-        const cloud = new THREE.Points(cloudGeo, new THREE.PointsMaterial({ size: 0.05, transparent: true, opacity: 0.7, vertexColors: true, blending: THREE.AdditiveBlending }));
-        scene.add(cloud);
-        const cloudLabel = create3DLabel("|ψ(r)|² Probability Cloud", "#67E8F9", 0.55);
-        cloudLabel.position.set(0, 3.5, 0); scene.add(cloudLabel);
-        const densityLabel = create3DLabel("High Density = High Probability", "#A78BFA", 0.35);
-        densityLabel.position.set(0, -2.5, 0); scene.add(densityLabel);
-        return (time) => { cloud.rotation.y = time * 0.1; cloud.rotation.z = time * 0.05; };
-      }
-    }
-  ],
-  optics: (scene) => {
-    // Realistic Convex Lens
-    const lensGeo = new THREE.SphereGeometry(0.8, 32, 32, 0, Math.PI * 2, Math.PI / 3, Math.PI / 3);
-    const lensMat = new THREE.MeshPhysicalMaterial({ color: 0x67E8F9, transmission: 0.9, opacity: 1, transparent: true, roughness: 0, ior: 1.5, thickness: 0.5 });
-    const lens = new THREE.Mesh(lensGeo, lensMat);
-    scene.add(lens);
-    
-    // Principal axis
-    const axisMat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.5 });
-    const axisGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-3, 0, 0), new THREE.Vector3(3, 0, 0)]);
-    scene.add(new THREE.Line(axisGeo, axisMat));
-    
-    // Level 1: Basic static yellow rays
-    const basicRays = new THREE.Group();
-    const rayMat = new THREE.LineBasicMaterial({ color: 0xFCD34D });
-    for (let i = -1; i <= 1; i += 0.5) {
-      if(i === 0) continue;
-      const pts = [new THREE.Vector3(-3, i, 0), new THREE.Vector3(0, i, 0), new THREE.Vector3(1.5, 0, 0)];
-      basicRays.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), rayMat));
-    }
-    scene.add(basicRays);
-
-    // Level 2/3: Animated Light Particles & Chromatic Dispersion
-    const particleCount = 200;
-    const pGeo = new THREE.BufferGeometry();
-    const pPos = new Float32Array(particleCount * 3);
-    const pColor = new Float32Array(particleCount * 3);
-    
-    const colors = [new THREE.Color(0xEF4444), new THREE.Color(0x10B981), new THREE.Color(0x3B82F6)]; // RGB Dispersion
-    for(let i=0; i<particleCount; i++) {
-        pPos[i*3] = -3 + Math.random()*6; // X
-        pPos[i*3+1] = (Math.random() > 0.5 ? 1 : -1) * (0.2 + Math.random()*0.8); // Y
-        pPos[i*3+2] = 0; // Z
-        pColor[i*3] = 1; pColor[i*3+1] = 0.8; pColor[i*3+2] = 0.2; // Yellow
-    }
-    pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-    pGeo.setAttribute('color', new THREE.BufferAttribute(pColor, 3));
-    
-    const pMat = new THREE.PointsMaterial({ size: 0.05, vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
-    const photons = new THREE.Points(pGeo, pMat);
-    scene.add(photons);
-
-    let lastComplexity = 1;
-
-    return (time) => {
-      lens.rotation.y = Math.sin(time * 0.5) * 0.1;
-      
-      // SCM Level Triggers
-      if (scmState.complexityLevel >= 2 && lastComplexity < 2) {
-        lastComplexity = 2;
-        basicRays.visible = false; // Turn off rigid lines
-        pMat.opacity = 0.8; // Turn on moving photons
-      }
-
-      // Moving Photons Animation
-      if (scmState.complexityLevel >= 2) {
-        const positions = photons.geometry.attributes.position.array;
-        const colorsAttr = photons.geometry.attributes.color.array;
-        
-        for(let i=0; i<particleCount; i++) {
-          let x = positions[i*3];
-          let y = positions[i*3+1];
-          let z = positions[i*3+2];
-          
-          x += 0.05; // Move right
-          if (x > 3) x = -3; // Loop
-          
-          // Lens Refraction logic
-          if (x > 0 && x < 1.5) {
-            y = y > 0 ? y - 0.02 * (y/1) : y + 0.02 * (-y/1); // Converge
-          } else if (x >= 1.5) {
-            y = y > 0 ? y + 0.02 : y - 0.02; // Diverge after focal point
-          }
-
-          // Level 3 SCM: Chromatic Dispersion (Prism Effect after focal point)
-          if (scmState.complexityLevel >= 3 && x > 1.5) {
-             const band = i % 3; // R, G, or B
-             y += (band === 0 ? 0.02 : band === 2 ? -0.02 : 0); // Diverge colors
-             colorsAttr[i*3] = colors[band].r;
-             colorsAttr[i*3+1] = colors[band].g;
-             colorsAttr[i*3+2] = colors[band].b;
-          } else {
-             colorsAttr[i*3] = 1; colorsAttr[i*3+1] = 0.8; colorsAttr[i*3+2] = 0.2; // Yellow
-          }
-
-          positions[i*3] = x;
-          positions[i*3+1] = y;
-        }
-        photons.geometry.attributes.position.needsUpdate = true;
-        photons.geometry.attributes.color.needsUpdate = true;
-      }
-    };
   },
+
   waves: (scene) => {
     // 3D sine wave
     const points = [];
@@ -1023,254 +867,108 @@ export function renderARLearning(container) {
     }
     return (time) => { scene.rotation.y = time * 0.3; };
   },
-  cell: () => [
-    {
-      title: "The Cell Cross-Section",
-      narrative: "The cell membrane encases a vast complex of organelles. In this cross-section, you can see the nucleus at the core, surrounded by the rough ER, mitochondria (orange), golgi apparatus (green), and lysosomes.",
-      setup: (scene) => {
-        const cellGroup = new THREE.Group();
-        
-        // 1. Outer Cell Wall (Half Sphere)
-        const wallMat = new THREE.MeshPhysicalMaterial({ color: 0xE2E8F0, side: THREE.DoubleSide, roughness: 0.4, clearcoat: 0.3 });
-        const wall = new THREE.Mesh(new THREE.SphereGeometry(2.0, 64, 64, 0, Math.PI), wallMat);
-        cellGroup.add(wall);
-
-        // 2. Cytoplasm Flat Cut Surface
-        const cytoMat = new THREE.MeshStandardMaterial({ color: 0xF8FAFC });
-        const cytoplasm = new THREE.Mesh(new THREE.CircleGeometry(2.0, 64), cytoMat);
-        cytoplasm.rotation.y = -Math.PI / 2; // Flat on YZ plane, facing -X
-        cellGroup.add(cytoplasm);
-
-        // 3. The Nucleus (Bulging from center)
-        const nucShell = new THREE.Mesh(new THREE.SphereGeometry(0.6, 64, 64, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0x9CA3AF, side: THREE.DoubleSide, roughness: 0.2, metalness: 0.3 }));
-        nucShell.rotation.y = Math.PI; // Bulges to -X
-        cellGroup.add(nucShell);
-
-        const nucCore = new THREE.Mesh(new THREE.SphereGeometry(0.55, 64, 64, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0x1F2937 }));
-        nucCore.rotation.y = Math.PI;
-        cellGroup.add(nucCore);
-
-        // Nucleus Pores
-        for (let i=0; i<15; i++) {
-          const pore = new THREE.Mesh(new THREE.CircleGeometry(0.05, 16), new THREE.MeshBasicMaterial({ color: 0x000000 }));
-          const phi = Math.acos(2 * Math.random() - 1);
-          const theta = -Math.PI + Math.random() * Math.PI; // Negative X side
-          const r = 0.56;
-          pore.position.set(r*Math.sin(phi)*Math.cos(theta), r*Math.cos(phi), r*Math.sin(phi)*Math.sin(theta));
-          pore.lookAt(0,0,0);
-          cellGroup.add(pore);
-        }
-
-        // 4. Rough ER (Pink wavy ribbons around nucleus)
-        const erMat = new THREE.MeshStandardMaterial({ color: 0xD8B4E2, side: THREE.DoubleSide });
-        for (let i=0; i<5; i++) {
-          const er = new THREE.Mesh(new THREE.TorusGeometry(0.75 + i*0.15, 0.04, 16, 64, Math.PI), erMat);
-          er.rotation.x = Math.PI / 2; 
-          er.rotation.y = Math.PI / 2;
-          er.position.x = -0.05; // Slightly outward
-          cellGroup.add(er);
-        }
-
-        // 5. Golgi Apparatus (Green wavy stacks)
-        const golgiGroup = new THREE.Group();
-        const golgiMat = new THREE.MeshStandardMaterial({ color: 0x86EFAC, side: THREE.DoubleSide });
-        for (let i=0; i<4; i++) {
-          const g = new THREE.Mesh(new THREE.TorusGeometry(0.4 - i*0.05, 0.05, 16, 32, Math.PI * 0.8), golgiMat);
-          g.position.set(0, 0, i * 0.08); 
-          golgiGroup.add(g);
-        }
-        golgiGroup.position.set(-0.05, -1.0, -0.8);
-        golgiGroup.rotation.x = Math.PI / 2;
-        golgiGroup.rotation.y = -Math.PI / 4;
-        cellGroup.add(golgiGroup);
-
-        // 6. Mitochondria (Orange capsules)
-        const mitoMat = new THREE.MeshStandardMaterial({ color: 0xF97316, roughness: 0.3 });
-        for (let i=0; i<7; i++) {
-          const mito = new THREE.Mesh(new THREE.CapsuleGeometry(0.15, 0.35, 16, 16), mitoMat);
-          const angle = Math.random() * Math.PI * 2;
-          const radius = 0.9 + Math.random() * 0.8; 
-          mito.position.set(-0.1, Math.sin(angle)*radius, Math.cos(angle)*radius);
-          mito.rotation.set(Math.random()*Math.PI, 0, Math.PI/2 + Math.random()*Math.PI);
-          cellGroup.add(mito);
-        }
-
-        // 7. Lysosomes & Vacuoles (Colorful spheres)
-        const colors = [0xEF4444, 0x8B5CF6, 0xFBBF24, 0x3B82F6];
-        for (let i=0; i<20; i++) {
-          const color = colors[Math.floor(Math.random() * colors.length)];
-          const pMesh = new THREE.Mesh(new THREE.SphereGeometry(0.06 + Math.random()*0.04, 16, 16), new THREE.MeshStandardMaterial({ color }));
-          const angle = Math.random() * Math.PI * 2;
-          const radius = 0.8 + Math.random() * 1.0;
-          pMesh.position.set(-0.05, Math.sin(angle)*radius, Math.cos(angle)*radius);
-          cellGroup.add(pMesh);
-        }
-
-        // Labels
-        const cellLabel = create3DLabel("Animal Cell", "#64748B", 0.6);
-        cellLabel.position.set(-0.5, 2.5, 0);
-        cellGroup.add(cellLabel);
-
-        // Rotate group so the flat cut (at X=0 facing -X) faces the camera (+Z)
-        cellGroup.rotation.y = -Math.PI / 2;
-        cellGroup.rotation.z = Math.PI / 8; // Tilt slightly downward to see inside perfectly
-        scene.add(cellGroup);
-
-        return (time) => { cellGroup.rotation.x = Math.sin(time*0.2)*0.1; };
-      }
-    },
-    {
-      title: "The Command Center",
-      narrative: "The Nucleus contains the cell's DNA. This dense structure protects the genetic code and sends RNA messages through nuclear pores to synthesize proteins.",
-      setup: (scene) => {
-        const nucGroup = new THREE.Group();
-        
-        // Large Nucleus Shell
-        const nucShell = new THREE.Mesh(new THREE.SphereGeometry(1.5, 64, 64, 0, Math.PI), new THREE.MeshPhysicalMaterial({ color: 0x9CA3AF, side: THREE.DoubleSide, roughness: 0.3, metalness: 0.2 }));
-        nucShell.rotation.y = Math.PI; 
-        nucGroup.add(nucShell);
-
-        const nucCore = new THREE.Mesh(new THREE.SphereGeometry(1.4, 64, 64, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0x111827 }));
-        nucCore.rotation.y = Math.PI;
-        nucGroup.add(nucCore);
-
-        // DNA Helix inside
-        const dnaGroup = new THREE.Group();
-        for(let i=0; i<40; i++) {
-           const curve = new THREE.Mesh(new THREE.TorusKnotGeometry(0.6+(i*0.01), 0.02, 128, 16), new THREE.MeshBasicMaterial({color: 0x60A5FA}));
-           curve.rotation.x = Math.random() * Math.PI;
-           dnaGroup.add(curve);
-        }
-        dnaGroup.position.x = -0.5; // pull forward
-        nucGroup.add(dnaGroup);
-
-        const nucLabel = create3DLabel("Nucleus & DNA", "#818CF8", 0.7);
-        nucLabel.position.set(-1, 2.2, 0); nucGroup.add(nucLabel);
-
-        nucGroup.rotation.y = -Math.PI / 2;
-        nucGroup.rotation.z = Math.PI / 6;
-        scene.add(nucGroup);
-
-        return (time) => { dnaGroup.rotation.set(time * 0.1, time * 0.2, 0); nucGroup.rotation.x = Math.sin(time*0.5)*0.1; };
-      }
-    },
-    {
-      title: "The Powerhouse",
-      narrative: "Mitochondria generate chemical energy in the form of ATP. The complex inner folds (cristae) precisely maximize surface area for these vital biochemical reactions.",
-      setup: (scene) => {
-        const targetMito = new THREE.Group();
-        
-        // Transparent outer shell
-        const mitoShell = new THREE.Mesh(new THREE.CapsuleGeometry(1.0, 2.5, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xF97316, transparent: true, opacity: 0.4, transmission: 0.8, roughness: 0.1 }));
-        targetMito.add(mitoShell);
-        
-        // Inner cristae (complex folded structure)
-        const cristaeGeo = new THREE.TorusKnotGeometry(0.6, 0.2, 256, 32, 3, 7);
-        const cristae = new THREE.Mesh(cristaeGeo, new THREE.MeshStandardMaterial({ color: 0xFBBF24, roughness: 0.2, emissive: 0x92400E, emissiveIntensity: 0.5 }));
-        targetMito.add(cristae);
-
-        // Glowing ATP particles Flowing
-        const atpPts = [];
-        for(let i=0; i<400; i++) {
-           atpPts.push((Math.random()-0.5)*1.8, (Math.random()-0.5)*3.5, (Math.random()-0.5)*1.8);
-        }
-        const atpGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(atpPts, 3));
-        const atpMat = new THREE.PointsMaterial({ color: 0x67E8F9, size: 0.08, transparent: true, blending: THREE.AdditiveBlending });
-        const atpCloud = new THREE.Points(atpGeo, atpMat);
-        targetMito.add(atpCloud);
-        
-        const atpLabel = create3DLabel("Mitochondrial Cristae", "#FBBF24", 0.7);
-        atpLabel.position.set(0, 3.2, 0);
-        targetMito.add(atpLabel);
-        
-        targetMito.rotation.set(0.4, -0.6, 0);
-        scene.add(targetMito);
-
-        return (time) => {
-          targetMito.rotation.y += 0.003;
-          cristae.rotation.z = time * 0.1;
-          const positions = atpCloud.geometry.attributes.position.array;
-          for(let i=0; i<400; i++) {
-            positions[i*3+1] += 0.015; // Flow ATP upwards smoothly
-            if (positions[i*3+1] > 1.75) positions[i*3+1] = -1.75;
-          }
-          atpCloud.geometry.attributes.position.needsUpdate = true;
-        };
-      }
+  
+  cell: (scene) => {
+    const cellGroup = new THREE.Group();
+    
+    // Simple plant cell
+    const cellMembrane = new THREE.Mesh(
+      new THREE.SphereGeometry(1.5, 32, 32),
+      new THREE.MeshStandardMaterial({ color: 0xE2E8F0, wireframe: false })
+    );
+    cellGroup.add(cellMembrane);
+    
+    // Nucleus
+    const nucleus = new THREE.Mesh(
+      new THREE.SphereGeometry(0.6, 32, 32),
+      new THREE.MeshStandardMaterial({ color: 0x9CA3AF })
+    );
+    cellGroup.add(nucleus);
+    
+    // Mitochondria
+    for (let i = 0; i < 5; i++) {
+      const x = (Math.random() - 0.5) * 2;
+      const y = (Math.random() - 0.5) * 2;
+      const z = (Math.random() - 0.5) * 2;
+      const mito = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.2, 0.4, 8, 8),
+        new THREE.MeshStandardMaterial({ color: 0xF97316 })
+      );
+      mito.position.set(x, y, z);
+      cellGroup.add(mito);
     }
-  ],
-  water: () => [
-    {
-      title: "H2O Macro Droplet",
-      narrative: "Water in its macroscopic liquid state. The molecules are loosely packed and flow freely. Surface tension creates macroscopic droplets.",
-      setup: (scene) => {
-        const droplet = new THREE.Mesh(new THREE.SphereGeometry(1.5, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0x67E8F9, transmission: 0.9, opacity: 1, transparent: true, roughness: 0.0, ior: 1.33 }));
-        scene.add(droplet);
-        const dropLabel = create3DLabel("Water Droplet", "#67E8F9", 0.6);
-        dropLabel.position.set(0, 2, 0); scene.add(dropLabel);
-        return (time) => { droplet.scale.y = 1 + Math.sin(time*2)*0.05; };
-      }
-    },
-    {
-      title: "The H2O Molecule",
-      narrative: "Zooming in, we see the individual H2O molecule. It consists of one central oxygen atom securely bound to two hydrogen atoms, forming a uniquely bent V-shape.",
-      setup: (scene) => {
-        const mesoGroup = new THREE.Group();
-        const oxygen = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xEF4444, emissive: 0x7F1D1D }));
-        mesoGroup.add(oxygen);
-        
-        const angle = 104.5 * Math.PI / 180;
-        const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xF1F5F9, emissive: 0x94A3B8 }));
-        h1.position.set(Math.sin(angle/2) * 1.2, Math.cos(angle/2) * 1.2, 0);
-        mesoGroup.add(h1);
-        
-        const h2 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xF1F5F9, emissive: 0x94A3B8 }));
-        h2.position.set(-Math.sin(angle/2) * 1.2, Math.cos(angle/2) * 1.2, 0);
-        mesoGroup.add(h2);
-        
-        const molLabel = create3DLabel("H2O Molecule", "#EF4444", 0.4);
-        molLabel.position.set(0, 2, 0); mesoGroup.add(molLabel);
-        scene.add(mesoGroup);
-        return (time) => { mesoGroup.rotation.y = time * 0.5; };
-      }
-    },
-    {
-      title: "Covalent Bonds",
-      narrative: "The 104.5-degree angle is rigid. The oxygen and hydrogen atoms share electrons in what is known as a covalent bond to keep the molecule structurally stable.",
-      setup: (scene) => {
-        const microGroup = new THREE.Group();
-        const oxygen = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xEF4444, emissive: 0x7F1D1D, transmission: 0.5, transparent: true }));
-        microGroup.add(oxygen);
-        
-        const angle = 104.5 * Math.PI / 180;
-        const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xF1F5F9, emissive: 0x94A3B8 }));
-        h1.position.set(Math.sin(angle/2) * 1.2, Math.cos(angle/2) * 1.2, 0);
-        microGroup.add(h1);
-        
-        const h2 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xF1F5F9, emissive: 0x94A3B8 }));
-        h2.position.set(-Math.sin(angle/2) * 1.2, Math.cos(angle/2) * 1.2, 0);
-        microGroup.add(h2);
-
-        const bond1 = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.02, 16, 64), new THREE.MeshBasicMaterial({ color: 0x67E8F9, transparent: true, opacity: 0.8 }));
-        bond1.position.copy(h1.position.clone().multiplyScalar(0.5));
-        bond1.lookAt(h1.position);
-        microGroup.add(bond1);
-
-        const bond2 = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.02, 16, 64), new THREE.MeshBasicMaterial({ color: 0x67E8F9, transparent: true, opacity: 0.8 }));
-        bond2.position.copy(h2.position.clone().multiplyScalar(0.5));
-        bond2.lookAt(h2.position);
-        microGroup.add(bond2);
-        
-        const bondLabel = create3DLabel("104.5° Covalent Bonds", "#F59E0B", 0.4);
-        bondLabel.position.set(0, -1, 0); microGroup.add(bondLabel);
-        
-        scene.add(microGroup);
-        return (time) => { microGroup.rotation.y = time * 0.5; bond1.rotation.z = time * 4; bond2.rotation.z = time * 4; };
-      }
+    
+    scene.add(cellGroup);
+    return (time) => {
+      cellGroup.rotation.x = time * 0.1;
+      cellGroup.rotation.y = time * 0.15;
+    };
+  },
+  
+  water: (scene) => {
+    const h2o = new THREE.Group();
+    const oxyMat = new THREE.MeshStandardMaterial({ color: 0xEF4444 });
+    const hydMat = new THREE.MeshStandardMaterial({ color: 0x06B6D4 });
+    
+    // Oxygen atom (center)
+    const oxygen = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), oxyMat);
+    h2o.add(oxygen);
+    
+    // Hydrogen atoms (bonded)
+    const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 32, 32), hydMat);
+    h1.position.set(-0.3, 0.2, 0);
+    h2o.add(h1);
+    
+    const h2 = new THREE.Mesh(new THREE.SphereGeometry(0.15, 32, 32), hydMat);
+    h2.position.set(0.3, 0.2, 0);
+    h2o.add(h2);
+    
+    // Bonds
+    const bondGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.35, 8);
+    const bondMat = new THREE.MeshStandardMaterial({ color: 0xFCD34D });
+    const bond1 = new THREE.Mesh(bondGeo, bondMat);
+    bond1.position.set(-0.15, 0.1, 0);
+    bond1.rotation.z = Math.PI / 4;
+    h2o.add(bond1);
+    
+    const bond2 = new THREE.Mesh(bondGeo, bondMat);
+    bond2.position.set(0.15, 0.1, 0);
+    bond2.rotation.z = -Math.PI / 4;
+    h2o.add(bond2);
+    
+    scene.add(h2o);
+    return (time) => {
+      h2o.rotation.x = time * 0.3;
+      h2o.rotation.y = time * 0.2;
+    };
+  },
+  
+  bonds: (scene) => {
+    // Simple representation of molecular bonds
+    const bondGroup = new THREE.Group();
+    const atoms = [];
+    const colors = [0xFF6B6B, 0x4ECDC4, 0x45B7D1];
+    
+    for (let i = 0; i < 3; i++) {
+      const atom = new THREE.Mesh(
+        new THREE.SphereGeometry(0.2, 16, 16),
+        new THREE.MeshStandardMaterial({ color: colors[i] })
+      );
+      atom.position.set(
+        Math.cos((i / 3) * Math.PI * 2) * 1,
+        Math.sin((i / 3) * Math.PI * 2) * 1,
+        0
+      );
+      bondGroup.add(atom);
+      atoms.push(atom);
     }
-  ],
-  bonds: (scene) => { return modelBuilders.water(scene); },
-  // ENGINEERING
+    
+    scene.add(bondGroup);
+    return (time) => {
+      bondGroup.rotation.z = time * 0.2;
+    };
+  },
+  
   gears: (scene) => {
     const createGear = (radius, teeth, x, y, color) => {
       const shape = new THREE.Shape();
@@ -1303,8 +1001,8 @@ export function renderARLearning(container) {
       gear2.rotation.z = -time * 0.5 * (12/8);
     };
   },
+  
   bridges: (scene) => {
-    // Truss bridge
     const mat = new THREE.MeshPhongMaterial({ color: 0x06B6D4 });
     const beam = (x1,y1,z1,x2,y2,z2) => {
       const dir = new THREE.Vector3(x2-x1,y2-y1,z2-z1);
@@ -1315,20 +1013,15 @@ export function renderARLearning(container) {
       m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.normalize());
       scene.add(m);
     };
-    // Bottom chord
     for (let i = -3; i < 3; i++) { beam(i,0,0,i+1,0,0); beam(i,0,0.8,i+1,0,0.8); }
-    // Top chord
     for (let i = -2; i < 2; i++) { beam(i,1.5,0.4,i+1,1.5,0.4); }
-    // Verticals & diagonals
     for (let i = -3; i <= 3; i++) { beam(i,0,0,i,0,0.8); if(i>=-2&&i<=2) { beam(i,0,0,i,1.5,0.4); beam(i,0,0.8,i,1.5,0.4); } }
-    // Road surface
     const road = new THREE.Mesh(new THREE.BoxGeometry(6, 0.05, 0.8), new THREE.MeshPhongMaterial({ color: 0x475569 }));
     scene.add(road);
     return (time) => { scene.rotation.y = time * 0.15; };
   },
-  // MATH
+  
   calculus: (scene) => {
-    // ODT Macro: 3D Surface Field
     const macroGroup = new THREE.Group();
     const geo = new THREE.PlaneGeometry(6, 6, 50, 50);
     const pos = geo.attributes.position;
@@ -1342,64 +1035,11 @@ export function renderARLearning(container) {
     surface.rotation.x = -Math.PI / 4;
     macroGroup.add(surface);
     scene.add(macroGroup);
-
-    // Target point for ODT Traversal (x=1, y=1)
-    const tx = 1, ty = 1;
-
-    // ODT Meso: Tangent Plane geometry
-    const mesoGroup = new THREE.Group();
-    const tanPlane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ color: 0xFCD34D, transparent: true, opacity: 0, side: THREE.DoubleSide }));
-    tanPlane.position.set(tx, ty, Math.sin(tx*1.5)*Math.cos(ty*1.5)*0.5 + 0.01);
-    
-    // Partial derivative slopes (dz/dx, dz/dy)
-    const dzdx = 1.5 * Math.cos(tx*1.5)*Math.cos(ty*1.5)*0.5;
-    const dzdy = -1.5 * Math.sin(tx*1.5)*Math.sin(ty*1.5)*0.5;
-    
-    const normal = new THREE.Vector3(-dzdx, -dzdy, 1).normalize();
-    const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), normal);
-    tanPlane.applyQuaternion(quaternion);
-    mesoGroup.add(tanPlane);
-    mesoGroup.rotation.x = -Math.PI / 4;
-    scene.add(mesoGroup);
-
-    // ODT Micro: Gradient Arrow pointing uphill
-    const arrowHelper = new THREE.ArrowHelper(new THREE.Vector3(dzdx, dzdy, 0).normalize(), tanPlane.position, 1, 0xEF4444);
-    arrowHelper.line.material.transparent = true; arrowHelper.line.material.opacity = 0;
-    arrowHelper.cone.material.transparent = true; arrowHelper.cone.material.opacity = 0;
-    mesoGroup.add(arrowHelper);
-
     return (time) => {
-      // Flow surface
-      for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i), y = pos.getY(i);
-        pos.setZ(i, Math.sin(x*1.5 + time*0.5)*Math.cos(y*1.5 + time*0.5)*0.5);
-      }
-      pos.needsUpdate = true;
-      surface.geometry.computeVertexNormals();
-
-      if (time < 15) {
-        macroGroup.rotation.y = time * 0.1;
-        mesoGroup.rotation.y = time * 0.1;
-      } else if (time >= 15 && time < 25) {
-        // Traversal 1: Zoom to Tangent Plane Point
-        const p = (time - 15) / 10;
-        macroGroup.rotation.y = 0; mesoGroup.rotation.y = 0; // Lock rotation
-        
-        // Offset scene negatively towards the evaluated point
-        const offset = new THREE.Vector3(-tx, -Math.sin(-Math.PI/4)*ty, -1).multiplyScalar(p * 2);
-        macroGroup.position.copy(offset);
-        mesoGroup.position.copy(offset);
-        
-        surfaceMat.opacity = Math.max(0.1, 0.9 - p*0.8);
-        tanPlane.material.opacity = p * 0.7;
-      } else if (time >= 25) {
-        // Traversal 2: Show mathematical gradient vector
-        const p = Math.min(1, (time - 25) / 5);
-        arrowHelper.line.material.opacity = p;
-        arrowHelper.cone.material.opacity = p;
-      }
+      macroGroup.rotation.y = time * 0.1;
     };
   },
+  
   geometry: (scene) => {
     const shapes = [
       new THREE.Mesh(new THREE.TetrahedronGeometry(0.6), new THREE.MeshPhongMaterial({ color: 0x7C3AED })),
@@ -1410,78 +1050,23 @@ export function renderARLearning(container) {
     shapes.forEach((s, i) => { s.position.x = (i - 1.5) * 1.5; scene.add(s); });
     return (time) => { shapes.forEach((s, i) => { s.rotation.x = time * (0.3 + i*0.1); s.rotation.y = time * (0.2 + i*0.15); }); };
   },
-  // HISTORY
+  
   pyramid: (scene) => {
-    // ODT Macro: Great Pyramid Exterior
-    const envGroup = new THREE.Group();
     const pyGeo = new THREE.ConeGeometry(2.5, 3.5, 4);
-    const pyMat = new THREE.MeshPhysicalMaterial({ color: 0xF59E0B, roughness: 0.8, side: THREE.DoubleSide, transparent:true });
+    const pyMat = new THREE.MeshPhysicalMaterial({ color: 0xF59E0B, roughness: 0.8 });
     const pyramid = new THREE.Mesh(pyGeo, pyMat);
     pyramid.position.y = 1.75;
     pyramid.rotation.y = Math.PI / 4;
-    envGroup.add(pyramid);
+    scene.add(pyramid);
     
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.MeshPhysicalMaterial({ color: 0xD4A574 }));
     ground.rotation.x = -Math.PI / 2;
-    envGroup.add(ground);
-    scene.add(envGroup);
+    scene.add(ground);
 
-    // ODT Meso: King's Chamber & Sarcophagus (Inside Pyramid)
-    const mesoGroup = new THREE.Group();
-    mesoGroup.position.y = 1.0; // Deep inside the pyramid
-    const chamberGeo = new THREE.BoxGeometry(0.5, 0.4, 0.5);
-    const chamberMat = new THREE.MeshPhysicalMaterial({ color: 0x222222, side: THREE.BackSide });
-    const chamber = new THREE.Mesh(chamberGeo, chamberMat);
-    mesoGroup.add(chamber);
-    
-    // Sarcophagus
-    const sarco = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.3), new THREE.MeshPhysicalMaterial({ color: 0xFCD34D, emissive: 0x442200, transparent: true, opacity: 0 }));
-    sarco.position.y = -0.15;
-    mesoGroup.add(sarco);
-    scene.add(mesoGroup);
-
-    let oZoomOffset = new THREE.Vector3(0, -1.0, 0); // Vector to pull camera into chamber
     return (time) => {
-      if (time < 15) {
-        envGroup.rotation.y = time * 0.1;
-        mesoGroup.rotation.y = time * 0.1;
-      } else if (time >= 15 && time < 25) {
-        // Traversal: Dissolve Outer Pyramid & Zoom Into Chamber
-        const p = (time - 15) / 10;
-        envGroup.rotation.y = 0; mesoGroup.rotation.y = 0; // Lock rotation
-        
-        pyMat.opacity = 1 - p; // Dissolve pyramid logic
-        ground.material.opacity = 1 - p;
-        ground.material.transparent = true;
-
-        envGroup.position.lerpVectors(new THREE.Vector3(0,0,0), oZoomOffset.clone().multiplyScalar(4), p);
-        envGroup.scale.setScalar(1 + p*3);
-        mesoGroup.position.lerpVectors(new THREE.Vector3(0, 1.0, 0), new THREE.Vector3(0, 0, 0), p);
-        mesoGroup.scale.setScalar(1 + p*5); // Zoom to chamber
-        
-        sarco.material.opacity = p; // Fade in sarcophagus
-      }
+      pyramid.rotation.y = time * 0.1;
     };
-  },
-  colosseum: (scene) => {
-    // Simplified Colosseum
-    const wallGeo = new THREE.CylinderGeometry(2, 2.2, 2, 32, 1, true);
-    const wallMat = new THREE.MeshPhongMaterial({ color: 0xD4A574, side: THREE.DoubleSide });
-    scene.add(new THREE.Mesh(wallGeo, wallMat));
-    // Arches (columns)
-    for (let i = 0; i < 16; i++) {
-      const a = (i / 16) * Math.PI * 2;
-      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.2), new THREE.MeshPhongMaterial({ color: 0xA08060 }));
-      col.position.set(Math.cos(a) * 2.1, 0, Math.sin(a) * 2.1);
-      scene.add(col);
-    }
-    // Arena floor
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(1.8, 32), new THREE.MeshPhongMaterial({ color: 0xC4A882 }));
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -1;
-    scene.add(floor);
-    return (time) => { scene.rotation.y = time * 0.15; };
-  },
+  }
 };
 
 // Create fallback for any lesson not explicitly defined
