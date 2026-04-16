@@ -1,0 +1,121 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# OS specific
+Thumbs.db
+.DS_Store
+
+# Testing
+coverage/
+.nyc_output/
+
+# Logs
+logs/
+*.log
+
+# Package manager lock files (optional - include for consistency)
+# Uncomment if you want to exclude lock files
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Cache
+.cache/
+.vite/
+.parcel-cache
+.eslintcache
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Python (if using notebooks)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.pytest_cache/
+htmlcov/
+
+# Jupyter Notebook - keep notebooks but exclude cache
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# VS Code workspace settings (optional)
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# Mac
+.AppleDouble
+.LSOverride
+
+# Windows
+*.lnk
+
+# Linux
+.directory
+
+# IntelliJ
+*.iml
+*.iws
+*.ipr
+
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Compiled files
+*.o
+*.a
+*.so
+*.dll
+*.exe
+*.out
+*.app
