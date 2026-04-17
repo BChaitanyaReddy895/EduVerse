@@ -141,6 +141,12 @@ export class ProceduralModelFactory {
     this.modelGenerators.set('building', (level) => this._generateBuilding(level));
     this.modelGenerators.set('bridge', (level) => this._generateBridge(level));
     this.modelGenerators.set('arch', (level) => this._generateArch(level));
+
+    // SCCA RESEARCH CIFAR DATASET
+    this.modelGenerators.set('airplane', (level) => this._generateAirplane(level));
+    this.modelGenerators.set('automobile', (level) => this._generateAutomobile(level));
+    this.modelGenerators.set('ship', (level) => this._generateShip(level));
+    this.modelGenerators.set('heavy truck', (level) => this._generateHeavyTruck(level));
   }
 
   // ========== BIOLOGY GENERATORS ==========
@@ -2133,8 +2139,185 @@ export class ProceduralModelFactory {
     };
   }
 
+  // ========== SCCA RESEARCH DATASET MODELS ==========
+
+  _generateAirplane(level) {
+    const group = new THREE.Group();
+    const bodyMat = this._mat('metal');
+    const glassMat = this._mat('glass');
+    const blackMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+
+    // Fuselage (External)
+    const fuselage = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 1.2, 16), bodyMat);
+    fuselage.rotation.z = Math.PI / 2;
+    fuselage.name = 'Fuselage';
+    
+    // Wings (External)
+    const wings = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 1.4), bodyMat);
+    wings.position.set(0, -0.05, 0);
+    wings.name = 'Wings';
+    
+    // Tail
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.05), bodyMat);
+    tail.position.set(-0.5, 0.15, 0);
+    tail.name = 'Tail';
+
+    const externalGroup = new THREE.Group();
+    externalGroup.name = 'structure_external';
+    externalGroup.add(fuselage, wings, tail);
+    group.add(externalGroup);
+
+    // Jet Engine (Internal)
+    const internalGroup = new THREE.Group();
+    internalGroup.name = 'function_internal';
+    [-0.35, 0.35].forEach((z, i) => {
+        const engine = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.3, 16), blackMat);
+        engine.rotation.z = Math.PI / 2;
+        engine.position.set(-0.1, -0.1, z);
+        engine.name = i === 0 ? 'Jet engine' : 'Jet engine_2';
+        internalGroup.add(engine);
+    });
+    
+    // Cockpit
+    const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16, 0, Math.PI, 0, Math.PI/2), glassMat);
+    cockpit.position.set(0.4, 0.1, 0);
+    cockpit.rotation.z = -Math.PI / 6;
+    cockpit.name = 'Cockpit';
+    internalGroup.add(cockpit);
+    
+    group.add(internalGroup);
+
+    group.userData.animationData = { type: 'float', rate: 1.5, amplitude: 0.1 };
+    return group;
+  }
+
+  _generateAutomobile(level) {
+    const group = new THREE.Group();
+    const bodyMat = this._mat('metalDark');
+    const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+
+    const externalGroup = new THREE.Group();
+    externalGroup.name = 'structure_external';
+
+    // Chassis
+    const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.2, 0.45), bodyMat);
+    chassis.position.set(0, 0.1, 0);
+    chassis.name = 'Chassis';
+    externalGroup.add(chassis);
+    
+    // Top Cabin
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 0.4), this._mat('glass'));
+    cabin.position.set(-0.1, 0.3, 0);
+    externalGroup.add(cabin);
+
+    // Tires
+    [[-0.3, 0.25], [-0.3, -0.25], [0.3, 0.25], [0.3, -0.25]].forEach(([x, z], i) => {
+        const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 16), blackMat);
+        tire.rotation.x = Math.PI / 2;
+        tire.position.set(x, 0, z);
+        tire.name = `Tires_${i}`;
+        externalGroup.add(tire);
+    });
+    group.add(externalGroup);
+
+    // Internal Blocks
+    const internalGroup = new THREE.Group();
+    internalGroup.name = 'function_internal';
+    const engineBlock = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.15, 0.2), this._mat('copper'));
+    engineBlock.position.set(0.35, 0.1, 0);
+    engineBlock.name = 'Engine block';
+    
+    const transmission = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.3, 8), this._mat('metal'));
+    transmission.rotation.z = Math.PI / 2;
+    transmission.position.set(0, 0.1, 0);
+    transmission.name = 'Transmission';
+    
+    internalGroup.add(engineBlock, transmission);
+    group.add(internalGroup);
+
+    group.userData.animationData = { type: 'wiggle', rate: 2.0, amplitude: 0.02 };
+    return group;
+  }
+
+  _generateShip(level) {
+    const group = new THREE.Group();
+    
+    const externalGroup = new THREE.Group();
+    externalGroup.name = 'structure_external';
+    
+    const hullMat = new THREE.MeshStandardMaterial({ color: 0x882222, roughness: 0.8 });
+    const hull = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.2, 4), hullMat);
+    hull.rotation.z = -Math.PI / 2;
+    hull.rotation.y = Math.PI / 4;
+    hull.position.set(0, 0, 0);
+    hull.name = 'Hull';
+    externalGroup.add(hull);
+    
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.4), this._mat('metalDark'));
+    deck.position.set(-0.1, 0.15, 0);
+    deck.name = 'Deck';
+    externalGroup.add(deck);
+    group.add(externalGroup);
+
+    const internalGroup = new THREE.Group();
+    internalGroup.name = 'function_internal';
+    const dieselEngine = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.2), this._mat('metal'));
+    dieselEngine.position.set(-0.2, 0.2, 0);
+    dieselEngine.name = 'Diesel engine';
+    
+    const propeller = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.2, 8), this._mat('copper'));
+    propeller.position.set(-0.6, 0, 0);
+    propeller.rotation.z = Math.PI / 2;
+    propeller.name = 'Propeller';
+    
+    internalGroup.add(dieselEngine, propeller);
+    group.add(internalGroup);
+
+    group.userData.animationData = { type: 'float', rate: 0.5, amplitude: 0.05 };
+    return group;
+  }
+  
+  _generateHeavyTruck(level) {
+    const group = new THREE.Group();
+    
+    const externalGroup = new THREE.Group();
+    externalGroup.name = 'structure_external';
+    
+    const cab = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 0.4), this._mat('plastic'));
+    cab.position.set(0.6, 0.25, 0);
+    cab.name = 'Cab';
+    
+    const trailer = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.6, 0.42), this._mat('metalDark'));
+    trailer.position.set(-0.2, 0.3, 0);
+    trailer.name = 'Trailer';
+
+    // Tires
+    const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+    [[-0.6, 0.25], [-0.6, -0.25], [-0.3, 0.25], [-0.3, -0.25], [0.6, 0.25], [0.6, -0.25]].forEach(([x, z], i) => {
+        const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 16), blackMat);
+        tire.rotation.x = Math.PI / 2;
+        tire.position.set(x, 0, z);
+        tire.name = `Tires_${i}`;
+        externalGroup.add(tire);
+    });
+    
+    externalGroup.add(cab, trailer);
+    group.add(externalGroup);
+
+    const internalGroup = new THREE.Group();
+    internalGroup.name = 'function_internal';
+    const engine = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.2), this._mat('copper'));
+    engine.position.set(0.6, 0.1, 0);
+    engine.name = 'Heavy engine';
+    
+    internalGroup.add(engine);
+    group.add(internalGroup);
+
+    group.userData.animationData = { type: 'wiggle', rate: 1.0, amplitude: 0.02 };
+    return group;
+  }
+
   clearCache() {
-    this.generatedModels.clear();
   }
 }
 

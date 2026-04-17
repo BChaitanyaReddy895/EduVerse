@@ -1,0 +1,26 @@
+[
+    {
+        "concept": "airplane",
+        "domain": "Aeronautics",
+        "file": "plane.glb",
+        "desc": "mechanical airplane. External: Wings, Fuselage. Internal: Jet engine, Cockpit. Behavior: Aerodynamic flight."
+    },
+    {
+        "concept": "automobile",
+        "domain": "Automotive",
+        "file": "car.glb",
+        "desc": "mechanical automobile car. External: Chassis, Tires. Internal: Engine block, Transmission. Behavior: Road driving."
+    },
+    {
+        "concept": "ship",
+        "domain": "Marine",
+        "file": "ship.glb",
+        "desc": "mechanical ship. External: Hull, Deck. Internal: Diesel engine, Propeller. Behavior: Water navigation."
+    },
+    {
+        "concept": "heavy truck",
+        "domain": "Automotive",
+        "file": "truck.glb",
+        "desc": "mechanical heavy truck. External: Cab, Trailer. Internal: Heavy duty engine, Drive shaft. Behavior: Cargo transport."
+    }
+]

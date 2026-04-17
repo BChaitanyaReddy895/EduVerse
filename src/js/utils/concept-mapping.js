@@ -28,6 +28,40 @@ export class ConceptMappingEngine {
    */
   loadConceptDatabase() {
     const concepts = {
+      // RESEARCH SCCA DATASET (CIFAR)
+      'airplane': {
+        domain: 'AERONAUTICS',
+        category: 'ENGINEERING',
+        embedding: [0.9, 0.4, 0.2, 0.8, 0.1],
+        description: 'Aircraft driven by jet engines',
+        components: { external: ['Wings', 'Fuselage'], internal: ['Jet engine', 'Cockpit'] },
+        functions: ['Aerodynamic flight']
+      },
+      'automobile': {
+        domain: 'AUTOMOTIVE',
+        category: 'ENGINEERING',
+        embedding: [0.8, 0.5, 0.3, 0.7, 0.2],
+        description: 'Passenger road vehicle',
+        components: { external: ['Chassis', 'Tires'], internal: ['Engine block', 'Transmission'] },
+        functions: ['Road driving']
+      },
+      'ship': {
+        domain: 'MARINE',
+        category: 'ENGINEERING',
+        embedding: [0.7, 0.6, 0.4, 0.6, 0.3],
+        description: 'Large watercraft',
+        components: { external: ['Hull', 'Deck'], internal: ['Diesel engine', 'Propeller'] },
+        functions: ['Water navigation']
+      },
+      'heavy truck': {
+        domain: 'AUTOMOTIVE',
+        category: 'ENGINEERING',
+        embedding: [0.8, 0.5, 0.3, 0.7, 0.2],
+        description: 'Commercial cargo vehicle',
+        components: { external: ['Cab', 'Trailer'], internal: ['Heavy engine', 'Drive shaft'] },
+        functions: ['Cargo transport']
+      },
+
       // BIOLOGY & LIFE SCIENCES
       'heart': {
         domain: 'BIOLOGY',
@@ -72,20 +106,48 @@ export class ConceptMappingEngine {
 
       // PHYSICS & MECHANICS
       'motor': {
-        domain: 'ENGINEERING',
+        domain: 'MECHANICAL_ENGINEERING',
         category: 'MECHANICS',
         embedding: [0.8, 0.2, 0.5, 0.3, 0.7],
         description: 'Device converting electrical energy to mechanical energy',
-        components: ['stator', 'rotor', 'commutator', 'brushes'],
+        components: {
+          external: ['Housing', 'Cooling Fins', 'Shaft', 'Terminal Box'],
+          internal: ['Stator', 'Rotor', 'Copper Coils', 'Bearings', 'Magnets']
+        },
         functions: ['rotation', 'torque_generation', 'motion_transmission']
       },
       'circuit': {
-        domain: 'ELECTRICAL_ENGINEERING',
+        domain: 'COMPUTER_SCIENCE',
         category: 'ELECTRONICS',
         embedding: [0.6, 0.5, 0.9, 0.3, 0.2],
-        description: 'Interconnected electrical components',
-        components: ['resistor', 'capacitor', 'inductor', 'transistor'],
+        description: 'Interconnected electrical logic components',
+        components: {
+          external: ['PCB Board', 'I/O Ports', 'Connectors'],
+          internal: ['Microcontroller', 'Resistors', 'Capacitors', 'Copper Traces']
+        },
         functions: ['current_flow', 'voltage_regulation', 'signal_processing']
+      },
+      'cpu': {
+        domain: 'COMPUTER_SCIENCE',
+        category: 'ELECTRONICS',
+        embedding: [0.6, 0.5, 0.9, 0.8, 0.7],
+        description: 'Central Processing Unit executing logic',
+        components: {
+          external: ['Heat Spreader', 'Contact Pads', 'Substrate PCB'],
+          internal: ['Silicon Die', 'L1/L2 Cache', 'ALU', 'Transistors']
+        },
+        functions: ['logic_execution', 'data_calculation', 'instruction_fetching']
+      },
+      'motherboard': {
+        domain: 'COMPUTER_SCIENCE',
+        category: 'ELECTRONICS',
+        embedding: [0.6, 0.7, 0.9, 0.8, 0.4],
+        description: 'Main printed circuit board in general-purpose computers',
+        components: {
+          external: ['PCB', 'CPU Socket', 'RAM Slots', 'PCIe Slots', 'I/O Ports'],
+          internal: ['Chipset', 'VRM', 'SATA Controllers', 'BIOS Chip']
+        },
+        functions: ['component_interconnection', 'power_distribution', 'data_buses']
       },
       'machine': {
         domain: 'MECHANICAL_ENGINEERING',

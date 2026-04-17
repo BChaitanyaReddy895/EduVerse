@@ -1,0 +1,4 @@
+Research_Metric,Value
+Recall@1 Score,94.50%
+Recall@5 Score,100.00%
+Avg_Cosine_Similarity,0.2697

@@ -34,6 +34,31 @@ let currentLevel = 'INTERMEDIATE';
 let isInitialized = false;
 let containerRef = null;
 
+// Raycasting State
+let raycaster = null;
+let mouse = null;
+let originalMaterials = new Map();
+
+// SCCA Engineering Lexicon
+const LEXICON = {
+    'Fuselage': 'The main body of the aircraft, holding passenger and cargo payloads while offering aerodynamic structure.',
+    'Wings': 'Generates lift by utilizing aerodynamic pressure differences as the vehicle thrusts forward.',
+    'Tail': 'Provides essential stability and directional control during atmospheric flight.',
+    'Jet engine': 'Draws in air, compresses it, ignites fuel, and blasts it out the back to generate massive forward thrust.',
+    'Cockpit': 'The control center where pilots manage navigation, communication, and mechanical systems.',
+    'Chassis': 'The structural framework that supports the entire vehicle load and mounting points.',
+    'Tires': 'Provides traction, shock absorption, and directional friction against the road surface.',
+    'Engine block': 'Houses the internal combustion cylinders where fuel explosions create kinetic energy.',
+    'Transmission': 'Adapts the output of the engine to the drive wheels using complex gear ratios.',
+    'Cab': 'The operator cabin protecting the driver and housing vehicle telemetry systems.',
+    'Trailer': 'A massive rear enclosure designed strictly for towing high volumes of physical freight.',
+    'Heavy engine': 'A highly torqued diesel power block optimized for pulling massive structural weight.',
+    'Hull': 'The watertight body of the ship that displaces fluid to create buoyancy.',
+    'Deck': 'The primary horizontal surface above the hull for operational navigation and payload mounting.',
+    'Diesel engine': 'The massive internal combustion generator that provides long-distance marine propulsion.',
+    'Propeller': 'Converts rotational motion from the engine into hydraulic thrust to push the vessel forward.'
+};
+
 // ============================================================
 //  INITIALIZE
 // ============================================================
@@ -237,6 +262,11 @@ function _initThreeScene() {
   renderer.domElement.style.display = 'none'; // Hidden until model loaded
   viewport.appendChild(renderer.domElement);
 
+  // Initialize Raycaster
+  raycaster = new THREE.Raycaster();
+  mouse = new THREE.Vector2();
+  renderer.domElement.addEventListener('pointerdown', _onPointerDown);
+
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
@@ -289,6 +319,82 @@ function _startRenderLoop() {
     }
   }
   animate();
+}
+
+// ============================================================
+//  RAYCASTING INTERACTIVE MESH LOGIC
+// ============================================================
+
+function _onPointerDown(event) {
+  if (!renderer || !camera || !currentModel) return;
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObject(currentModel, true);
+
+  // Restore previous materials
+  originalMaterials.forEach((originalMat, mesh) => {
+    mesh.material = originalMat;
+  });
+  originalMaterials.clear();
+
+  if (intersects.length > 0) {
+    let clickedMesh = intersects[0].object;
+    if (!clickedMesh.name) return;
+
+    // Clean generated names (e.g., "Tires_1" -> "Tires", "Jet engine_2" -> "Jet engine")
+    const cleanedName = clickedMesh.name.replace(/_\d+$/, '');
+
+    // Cache original material and apply glowing neon overlay
+    originalMaterials.set(clickedMesh, clickedMesh.material);
+    clickedMesh.material = new THREE.MeshPhysicalMaterial({
+        color: 0x00ffcc, emissive: 0x00aa88, emissiveIntensity: 0.6,
+        roughness: 0.1, metalness: 0.8, clearcoat: 1.0
+    });
+
+    _showOverlayPanel(event.clientX, event.clientY, cleanedName);
+  } else {
+    _hideOverlayPanel();
+  }
+}
+
+function _showOverlayPanel(x, y, partName) {
+  let tooltip = document.getElementById('ar-semantic-tooltip');
+  if (!tooltip) {
+      tooltip = document.createElement('div');
+      tooltip.id = 'ar-semantic-tooltip';
+      document.body.appendChild(tooltip);
+      Object.assign(tooltip.style, {
+          position: 'absolute', background: 'rgba(10, 15, 30, 0.90)',
+          border: '1px solid #00ffcc', color: '#fff',
+          padding: '16px', borderRadius: '8px', zIndex: '9999',
+          boxShadow: '0 8px 32px rgba(0, 255, 204, 0.15)',
+          backdropFilter: 'blur(8px)', pointerEvents: 'none',
+          maxWidth: '300px', fontFamily: 'Inter, sans-serif',
+          transition: 'opacity 0.2s ease', opacity: '0'
+      });
+  }
+  
+  const description = LEXICON[partName] || `Functional cognitive geometry isolating the [${partName}] sub-system.`;
+  
+  tooltip.innerHTML = `
+      <div style="font-size: 10px; color: #00ffcc; text-transform: uppercase; font-weight: 800; letter-spacing: 1px; margin-bottom: 6px;">Semantic Attention Hit</div>
+      <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">${partName}</div>
+      <div style="font-size: 13px; color: #aaddcc; line-height: 1.5;">${description}</div>
+  `;
+  
+  tooltip.style.left = (x + 25) + 'px';
+  tooltip.style.top = (y - 30) + 'px';
+  tooltip.style.display = 'block';
+  setTimeout(() => tooltip.style.opacity = '1', 10);
+}
+
+function _hideOverlayPanel() {
+   const t = document.getElementById('ar-semantic-tooltip');
+   if (t) { t.style.opacity = '0'; setTimeout(() => t.style.display = 'none', 200); }
 }
 
 function _animateModel(model, delta) {
@@ -710,9 +816,20 @@ function _updateConceptPanel(concept) {
   // Components
   const compEl = document.getElementById('concept-components');
   if (compEl && concept.components) {
-    compEl.innerHTML = concept.components.map(c =>
-      `<span class="component-tag">${c.replace(/_/g, ' ')}</span>`
-    ).join('');
+    if (Array.isArray(concept.components)) {
+      compEl.innerHTML = concept.components.map(c =>
+        `<span class="component-tag">${c.replace(/_/g, ' ')}</span>`
+      ).join('');
+    } else {
+      let html = '';
+      if (concept.components.external) {
+        html += `<div class="component-section"><div class="section-title">External Structure:</div><div class="tag-row">${concept.components.external.map(c => `<span class="component-tag external-tag">${c}</span>`).join('')}</div></div>`;
+      }
+      if (concept.components.internal) {
+        html += `<div class="component-section"><div class="section-title">Internal Components:</div><div class="tag-row">${concept.components.internal.map(c => `<span class="component-tag internal-tag">${c}</span>`).join('')}</div></div>`;
+      }
+      compEl.innerHTML = html;
+    }
   }
 }
 

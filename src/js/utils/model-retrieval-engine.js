@@ -84,6 +84,32 @@ export class ModelRetrievalEngine {
         description: 'Bacterial cell with flagella and cell wall',
       },
 
+      // SCCA RESEARCH CIFAR DATASET
+      'airplane': {
+        modelName: 'Commercial Airplane', concept: 'airplane', domain: 'AERONAUTICS', category: 'ENGINEERING',
+        keywords: ['airplane', 'plane', 'aircraft', 'jet', 'flight', 'aeronautics', 'wings', 'engine', 'cockpit'],
+        complexity: 0.9, animated: true,
+        description: 'Commercial aircraft with fuselage, wings, jet engines, and cockpit',
+      },
+      'automobile': {
+        modelName: 'Automobile', concept: 'automobile', domain: 'AUTOMOTIVE', category: 'ENGINEERING',
+        keywords: ['automobile', 'car', 'vehicle', 'chassis', 'tires', 'engine', 'transmission', 'cab'],
+        complexity: 0.8, animated: true,
+        description: 'Passenger vehicle with visible chassis, engine block, and transmission',
+      },
+      'ship': {
+        modelName: 'Marine Vessel', concept: 'ship', domain: 'MARINE', category: 'ENGINEERING',
+        keywords: ['ship', 'boat', 'vessel', 'marine', 'hull', 'deck', 'propeller', 'diesel engine'],
+        complexity: 0.8, animated: true,
+        description: 'Naval vessel showing hull structure and internal diesel propulsion',
+      },
+      'heavy truck': {
+        modelName: 'Heavy Cargo Truck', concept: 'heavy truck', domain: 'AUTOMOTIVE', category: 'ENGINEERING',
+        keywords: ['heavy truck', 'truck', 'cargo', 'trailer', 'cab', 'engine', 'transport', 'wheels'],
+        complexity: 0.8, animated: true,
+        description: 'Commercial heavy transport truck with cab, trailer, and internal engine',
+      },
+
       // ENGINEERING & MECHANICS
       'motor': {
         modelName: 'Electric Motor', concept: 'motor', domain: 'ENGINEERING', category: 'MECHANICS',

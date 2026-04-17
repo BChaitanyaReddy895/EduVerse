@@ -499,6 +499,41 @@
   font-weight: 500;
 }
 
+/* ── Structured Component UI ── */
+.component-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  width: 100%;
+}
+.section-title {
+  font-size: 0.65rem;
+  color: #c4b5fd;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+.component-section:nth-child(2) .section-title {
+  color: #6ee7b7;
+}
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.external-tag {
+  background: rgba(124, 58, 237, 0.15);
+  border-color: rgba(124, 58, 237, 0.3);
+  color: #ddd6fe;
+}
+.internal-tag {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #a7f3d0;
+}
+
 /* ── Stats Panel ── */
 .ar-stats-panel {
   display: flex;
