@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="256" height="256" fill="#667eea"/>
+  
+  <!-- AR Symbol -->
+  <circle cx="128" cy="128" r="100" fill="#764ba2" opacity="0.3"/>
+  
+  <!-- 3D Cube -->
+  <path d="M 90 100 L 130 80 L 170 100 L 130 120 Z" fill="#00d4ff" stroke="#fff" stroke-width="2"/>
+  <path d="M 130 80 L 170 100 L 170 150 L 130 130 Z" fill="#00ff88" stroke="#fff" stroke-width="2"/>
+  <path d="M 90 100 L 130 130 L 170 150 L 130 120 Z" fill="#667eea" stroke="#fff" stroke-width="2"/>
+  
+  <!-- Light rays -->
+  <circle cx="128" cy="128" r="110" fill="none" stroke="#00d4ff" stroke-width="2" opacity="0.5"/>
+  <line x1="128" y1="18" x2="128" y2="38" stroke="#00ff88" stroke-width="2"/>
+  <line x1="218" y1="128" x2="238" y2="128" stroke="#00ff88" stroke-width="2"/>
+  <line x1="128" y1="218" x2="128" y2="238" stroke="#00ff88" stroke-width="2"/>
+  <line x1="38" y1="128" x2="18" y2="128" stroke="#00ff88" stroke-width="2"/>
+</svg>

@@ -1,2001 +1,799 @@
-// ============================================
-// EduVerse — WebAR Learning Module v2.0
-// Research-Grade Immersive Pedagogical Engine
-// Novel Algorithms: VSCR, NSTF, EHDG, PGRF
-// ============================================
+/**
+ * AR Learning Module v4.0 — Complete Pipeline UI
+ * 
+ * Provides the full user-facing interface for the Semantic-to-Spatial Cognitive Visualization System:
+ *  1. Image Upload (drag & drop / file select / concept gallery)
+ *  2. Pipeline Progress Dashboard (CLIP → Concept → Model → Layers → Render)
+ *  3. Three.js 3D Viewport with OrbitControls
+ *  4. Cognitive Layer Controls (toggle: Structure / Function / Interaction / Behavior / Simulation)
+ *  5. Learner Level Selector (Beginner → Expert)
+ *  6. Concept Info Panel with adaptive explanations
+ *  7. System Stats Dashboard
+ */
 
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { SemanticCognitiveARSystem } from '../utils/semantic-cognitive-ar.js';
 import { store } from '../utils/data-store.js';
-import { staggerAnimation, showToast, animateValue } from '../utils/helpers.js';
-import {
-  PhysicsModels,
-  BiologyModels,
-  ChemistryModels,
-  EngineeringModels,
-  MathModels
-} from './realistic-3d-models.js';
 
-let currentSubject = null;
-let currentLesson = null;
-let arStream = null;
-let threeScene = null;
-let threeCamera = null;
-let threeRenderer = null;
-let animationId = null;
-let scmState = { interactionTime: 0, complexityLevel: 1, cognitiveLoad: 'low' };
-let scmInterval = null;
-let sessionStart = null;
-let composer = null; // Post-processing composer
+// ============================================================
+//  STATE
+// ============================================================
 
-// SSN Engine State
-let ssnNodes = [];
-let currentSsnIndex = 0;
-let currentSsnAnimate = null;
-let isSsnMode = false;
-let ssnTargetScene = null;
-let activePrefix = ''; // '3d' or 'ar'
-let nstfTransitioning = false; // NSTF transition lock
-let nstfClock = null;
+let arSystem = null;
+let scene = null;
+let camera = null;
+let renderer = null;
+let controls = null;
+let currentModel = null;
+let currentVisualization = null;
+let animationFrameId = null;
+let clock = null;
+let activeLayers = { STRUCTURE: true, FUNCTION: true, INTERACTION: true, BEHAVIOR: true, SIMULATION: true };
+let currentLevel = 'INTERMEDIATE';
+let isInitialized = false;
+let containerRef = null;
 
-// =============================================
-// NOVEL ALGORITHM 1: VSCR — Volumetric Spatial Comprehension Rendering
-// Formula: SCS(t) = α·G(t) + β·D(t) + γ·T(t) + δ·R(t)
-// =============================================
-const VSCR = {
-  alpha: 0.25, beta: 0.30, gamma: 0.25, delta: 0.20,
-  lambda: 0.05, K: 5,
-  mouseVelocity: 0, lastMouseX: 0, lastMouseY: 0, lastMouseTime: 0,
-  dwellStart: 0, interactionCount: 0, nodeVisits: {},
-  currentLOD: 0, scsScore: 0,
+// ============================================================
+//  INITIALIZE
+// ============================================================
 
-  reset() {
-    this.mouseVelocity = 0; this.dwellStart = Date.now();
-    this.interactionCount = 0; this.nodeVisits = {};
-    this.currentLOD = 0; this.scsScore = 0;
-  },
-
-  trackMouse(x, y) {
-    const now = Date.now();
-    const dt = Math.max(1, now - this.lastMouseTime);
-    const dx = x - this.lastMouseX, dy = y - this.lastMouseY;
-    this.mouseVelocity = Math.sqrt(dx*dx + dy*dy) / dt;
-    this.lastMouseX = x; this.lastMouseY = y; this.lastMouseTime = now;
-  },
-
-  trackInteraction() { this.interactionCount++; },
-  trackNodeVisit(nodeId) { this.nodeVisits[nodeId] = (this.nodeVisits[nodeId] || 0) + 1; },
-
-  // Core SCS Formula
-  computeSCS() {
-    const G = Math.max(0, 1 - this.mouseVelocity * 2); // Gaze stability (inverse velocity)
-    const tDwell = (Date.now() - this.dwellStart) / 1000;
-    const D = 1 - Math.exp(-this.lambda * tDwell); // Dwell-time decay
-    const T = Math.min(1, this.interactionCount / 20); // Interaction frequency
-    const currentNodeId = ssnNodes[currentSsnIndex]?.title || 'default';
-    const R = Math.min(1, (this.nodeVisits[currentNodeId] || 0) / this.K); // Revisit coefficient
-
-    this.scsScore = this.alpha * G + this.beta * D + this.gamma * T + this.delta * R;
-    this.scsScore = Math.max(0, Math.min(1, this.scsScore));
-
-    // Determine LOD
-    if (this.scsScore < 0.3) this.currentLOD = 0;
-    else if (this.scsScore < 0.6) this.currentLOD = 1;
-    else if (this.scsScore < 0.85) this.currentLOD = 2;
-    else this.currentLOD = 3;
-
-    return this.scsScore;
-  },
-
-  // Apply LOD to scene
-  applyLOD(scene) {
-    scene.traverse(child => {
-      if (child.userData.isEnvironment) return; // Skip environment objects
-      if (child.isMesh && child.material) {
-        const mat = child.material;
-        // LOD-0: Solid but minimal emissive (never wireframe — wireframe causes blur)
-        if (this.currentLOD === 0) {
-          mat.wireframe = false;
-          if (mat.emissive) mat.emissiveIntensity = 0.15;
-        } else if (this.currentLOD === 1) {
-          mat.wireframe = false;
-          if (mat.emissive) mat.emissiveIntensity = 0.4;
-        } else if (this.currentLOD >= 2) {
-          mat.wireframe = false;
-          if (mat.emissive) mat.emissiveIntensity = 0.3 + this.scsScore * 0.7;
-        }
-      }
-      if (child.isPoints && child.material) {
-        child.material.size = this.currentLOD >= 2 ? 0.08 : 0.05;
-      }
-    });
-  },
-
-  // Update UI telemetry panel
-  updateUI() {
-    const el = id => document.getElementById(id);
-    if (el('vscr-scs')) el('vscr-scs').textContent = this.scsScore.toFixed(3);
-    if (el('vscr-lod')) el('vscr-lod').textContent = `LOD-${this.currentLOD}`;
-    if (el('vscr-gaze')) el('vscr-gaze').textContent = Math.max(0, 1 - this.mouseVelocity * 2).toFixed(2);
-    if (el('vscr-dwell')) {
-      const tDwell = (Date.now() - this.dwellStart) / 1000;
-      el('vscr-dwell').textContent = `${tDwell.toFixed(0)}s`;
-    }
-    if (el('vscr-interactions')) el('vscr-interactions').textContent = this.interactionCount;
-    // SCS gauge fill
-    if (el('vscr-gauge-fill')) el('vscr-gauge-fill').style.width = `${this.scsScore * 100}%`;
-    // LOD color
-    if (el('vscr-lod')) {
-      const colors = ['#94A3B8', '#3B82F6', '#10B981', '#F59E0B'];
-      el('vscr-lod').style.color = colors[this.currentLOD] || '#94A3B8';
-    }
-  }
-};
-
-// =============================================
-// NOVEL ALGORITHM 2: NSTF — Narrative-Synchronized Temporal Fading
-// Opacity_out(t) = 1 / (1 + e^(k·(t - t_mid)))
-// Opacity_in(t)  = 1 / (1 + e^(-k·(t - t_mid)))
-// =============================================
-const NSTF = {
-  k: 8, // Steepness
-  transitionDuration: 1.2, // seconds
-  S_min: 0.3,
-
-  sigmoid(t, k, mid) { return 1 / (1 + Math.exp(k * (t - mid))); },
-  sigmoidInv(t, k, mid) { return 1 / (1 + Math.exp(-k * (t - mid))); },
-
-  // Execute a cross-dissolve between outgoing and incoming nodes
-  async crossDissolve(scene, outgoingAnimate, incomingSetup) {
-    nstfTransitioning = true;
-    const tStart = performance.now() / 1000;
-    const tMid = this.transitionDuration / 2;
-
-    // Snapshot outgoing objects
-    const outgoing = [];
-    scene.children.forEach(c => {
-      if (c.type === 'Mesh' || c.type === 'Group' || c.type === 'Points' || c.type === 'Sprite') {
-        outgoing.push(c);
-      }
-    });
-
-    // Create incoming objects in a temp group (invisible initially)
-    const incomingGroup = new THREE.Group();
-    incomingGroup.visible = false;
-    scene.add(incomingGroup);
-    const newAnimate = incomingSetup(incomingGroup);
-
-    return new Promise(resolve => {
-      const animate = () => {
-        const elapsed = performance.now() / 1000 - tStart;
-        const progress = Math.min(1, elapsed / this.transitionDuration);
-        const tNorm = progress * this.transitionDuration;
-
-        // Fade out old
-        const opOut = this.sigmoid(tNorm, this.k, tMid);
-        outgoing.forEach(c => {
-          c.traverse(child => {
-            if (child.material) {
-              child.material.transparent = true;
-              child.material.opacity = opOut;
-            }
-          });
-          c.scale.setScalar(1 - (1 - this.S_min) * (1 - opOut));
-        });
-
-        // Fade in new
-        const opIn = this.sigmoidInv(tNorm, this.k, tMid);
-        incomingGroup.visible = true;
-        incomingGroup.traverse(child => {
-          if (child.material) {
-            child.material.transparent = true;
-            child.material.opacity = opIn;
-          }
-        });
-        incomingGroup.scale.setScalar(this.S_min + (1 - this.S_min) * opIn);
-
-        if (progress < 1) {
-          requestAnimationFrame(animate);
-        } else {
-          // Cleanup: remove outgoing, reparent incoming
-          outgoing.forEach(c => scene.remove(c));
-          // Move children from incomingGroup to scene
-          const children = [...incomingGroup.children];
-          children.forEach(c => { incomingGroup.remove(c); scene.add(c); });
-          scene.remove(incomingGroup);
-          nstfTransitioning = false;
-          resolve(newAnimate);
-        }
-      };
-      animate();
-    });
-  }
-};
-
-// =============================================
-// NOVEL ALGORITHM 3: PGRF — Perceptual Gaze-Responsive Feedback
-// Attention(obj_i) = max(0, 1 - ||P_cursor - P_obj_i||² / R²)
-// =============================================
-const PGRF = {
-  R: 200, // Attention radius in pixels
-  cursorX: 0, cursorY: 0,
-  boostFactor: 2.0,
-  enabled: true,
-
-  trackCursor(x, y) { this.cursorX = x; this.cursorY = y; },
-
-  applyAttention(scene, camera, renderer) {
-    if (!this.enabled || !renderer) return;
-    const width = renderer.domElement.width;
-    const height = renderer.domElement.height;
-
-    scene.traverse(child => {
-      if (!child.isMesh && !child.isSprite) return;
-      // Project 3D position to 2D screen
-      const pos3D = new THREE.Vector3();
-      child.getWorldPosition(pos3D);
-      pos3D.project(camera);
-      const screenX = (pos3D.x * 0.5 + 0.5) * width;
-      const screenY = (-pos3D.y * 0.5 + 0.5) * height;
-
-      const dx = this.cursorX - screenX;
-      const dy = this.cursorY - screenY;
-      const distSq = dx*dx + dy*dy;
-      const attention = Math.max(0, 1 - distSq / (this.R * this.R));
-
-      if (child.material && child.material.emissive) {
-        child.material.emissiveIntensity = 0.1 + attention * this.boostFactor;
-      }
-      if (child.isSprite) {
-        const baseScale = child.userData.baseScale || child.scale.x;
-        child.userData.baseScale = baseScale;
-        const scaleFactor = 1 + 0.4 * attention;
-        child.scale.setScalar(baseScale * scaleFactor);
-      }
-    });
-  }
-};
-
-// =============================================
-// NOVEL ALGORITHM 4: EHDG — Entropic Hierarchical Depth Graph
-// H(edge_ij) = -Σ p(concept_k) · log₂(p(concept_k))
-// =============================================
-const EHDG = {
-  computeEntropy(priorMasteries) {
-    if (!priorMasteries.length) return 0;
-    let H = 0;
-    priorMasteries.forEach(p => {
-      if (p > 0 && p < 1) H -= p * Math.log2(p) + (1-p) * Math.log2(1-p);
-    });
-    return H / priorMasteries.length;
-  },
-  computeTraversalCost(nodes, masteryMap) {
-    let totalCost = 0;
-    for (let i = 1; i < nodes.length; i++) {
-      const priorMastery = masteryMap[nodes[i-1].title] || 0.5;
-      const currentMastery = masteryMap[nodes[i].title] || 0;
-      const entropy = this.computeEntropy([priorMastery]);
-      totalCost += entropy * (1 - currentMastery);
-    }
-    return totalCost;
-  },
-  // Reorder nodes to minimize total traversal cost (greedy)
-  optimizeOrder(nodes, masteryMap) {
-    if (nodes.length <= 2) return nodes;
-    // Keep first node fixed, greedily pick cheapest next
-    const ordered = [nodes[0]];
-    const remaining = nodes.slice(1);
-    while (remaining.length) {
-      let bestIdx = 0, bestCost = Infinity;
-      for (let i = 0; i < remaining.length; i++) {
-        const last = ordered[ordered.length - 1];
-        const priorM = masteryMap[last.title] || 0.5;
-        const curM = masteryMap[remaining[i].title] || 0;
-        const cost = this.computeEntropy([priorM]) * (1 - curM);
-        if (cost < bestCost) { bestCost = cost; bestIdx = i; }
-      }
-      ordered.push(remaining.splice(bestIdx, 1)[0]);
-    }
-    return ordered;
-  }
-};
-
-// =============================================
-// Kalman Filter for AR Gyroscope Smoothing
-// =============================================
-class KalmanFilter1D {
-  constructor(Q = 0.001, R = 0.1) {
-    this.Q = Q; // Process noise
-    this.R = R; // Measurement noise
-    this.x = 0; // Estimate
-    this.P = 1; // Estimate error
-  }
-  update(measurement) {
-    // Prediction
-    this.P += this.Q;
-    // Update
-    const K = this.P / (this.P + this.R);
-    this.x += K * (measurement - this.x);
-    this.P *= (1 - K);
-    return this.x;
+export async function initializeARLearning() {
+  try {
+    arSystem = new SemanticCognitiveARSystem();
+    clock = new THREE.Clock();
+    console.log('[AR Learning] Module created — will initialize on render');
+  } catch (error) {
+    console.error('[AR Learning] Module creation failed:', error);
   }
 }
 
-// =============================================
-// Environment & Atmosphere Generator
-// =============================================
-function createEnvironment(scene) {
-  // Gradient sky dome
-  const skyGeo = new THREE.SphereGeometry(50, 32, 32);
-  const skyMat = new THREE.ShaderMaterial({
-    side: THREE.BackSide,
-    uniforms: {
-      topColor: { value: new THREE.Color(0x0a0a1a) },
-      bottomColor: { value: new THREE.Color(0x1a0a2e) },
-      offset: { value: 10 }, exponent: { value: 0.6 }
-    },
-    vertexShader: `
-      varying vec3 vWorldPosition;
-      void main() {
-        vec4 worldPos = modelMatrix * vec4(position, 1.0);
-        vWorldPosition = worldPos.xyz;
-        gl_Position = projectionMatrix * viewMatrix * worldPos;
-      }`,
-    fragmentShader: `
-      uniform vec3 topColor;
-      uniform vec3 bottomColor;
-      uniform float offset;
-      uniform float exponent;
-      varying vec3 vWorldPosition;
-      void main() {
-        float h = normalize(vWorldPosition + offset).y;
-        gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
-      }`
-  });
-  const sky = new THREE.Mesh(skyGeo, skyMat);
-  sky.userData.isEnvironment = true;
-  scene.add(sky);
-
-  // Grid floor
-  const gridHelper = new THREE.GridHelper(20, 40, 0x1a1a3e, 0x0d0d1f);
-  gridHelper.position.y = -2;
-  gridHelper.material.transparent = true;
-  gridHelper.material.opacity = 0.4;
-  gridHelper.userData.isEnvironment = true;
-  scene.add(gridHelper);
-
-  // Ambient floating particles
-  const ambientGeo = new THREE.BufferGeometry();
-  const ambientPts = [];
-  for (let i = 0; i < 200; i++) {
-    ambientPts.push(
-      (Math.random() - 0.5) * 20,
-      (Math.random() - 0.5) * 10,
-      (Math.random() - 0.5) * 20
-    );
-  }
-  ambientGeo.setAttribute('position', new THREE.Float32BufferAttribute(ambientPts, 3));
-  const ambientMat = new THREE.PointsMaterial({
-    color: 0x7C3AED, size: 0.04, transparent: true, opacity: 0.3,
-    blending: THREE.AdditiveBlending
-  });
-  const ambientParticles = new THREE.Points(ambientGeo, ambientMat);
-  ambientParticles.userData.isEnvironment = true;
-  scene.add(ambientParticles);
-
-  return ambientParticles;
-}
-
-// =============================================
-// 3D Label Generator (Canvas -> Sprite) — Large & Crisp
-// =============================================
-function create3DLabel(text, color = "#ffffff", scale = 1.0) {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = 2048;
-    canvas.height = 512;
-    // Set font first so measureText works
-    ctx.font = "bold 100px 'Inter', 'Segoe UI', Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    // Background pill for readability
-    const measured = ctx.measureText(text);
-    const tw = measured.width || 600;
-    const pillX = 1024 - tw/2 - 50;
-    const pillW = tw + 100;
-    ctx.fillStyle = 'rgba(0,0,0,0.65)';
-    ctx.beginPath();
-    // Manual rounded rect for compatibility
-    const r = 25, py = 130, ph = 250;
-    ctx.moveTo(pillX + r, py);
-    ctx.lineTo(pillX + pillW - r, py);
-    ctx.quadraticCurveTo(pillX + pillW, py, pillX + pillW, py + r);
-    ctx.lineTo(pillX + pillW, py + ph - r);
-    ctx.quadraticCurveTo(pillX + pillW, py + ph, pillX + pillW - r, py + ph);
-    ctx.lineTo(pillX + r, py + ph);
-    ctx.quadraticCurveTo(pillX, py + ph, pillX, py + ph - r);
-    ctx.lineTo(pillX, py + r);
-    ctx.quadraticCurveTo(pillX, py, pillX + r, py);
-    ctx.closePath();
-    ctx.fill();
-    // Glow layer
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 40;
-    ctx.font = "bold 100px 'Inter', 'Segoe UI', Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = color;
-    ctx.fillText(text, 1024, 256);
-    // Crisp second pass
-    ctx.shadowBlur = 0;
-    ctx.fillText(text, 1024, 256);
-    
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-    const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false, sizeAttenuation: true });
-    const sprite = new THREE.Sprite(spriteMaterial);
-    sprite.scale.set(scale * 6, scale * 1.5, 1);
-    return sprite;
-}
-
-// =============================================
-// SSN Engine — Enhanced with NSTF + EHDG
-// =============================================
-function initSsn(scene, builderFunc, prefix) {
-    activePrefix = prefix;
-    ssnTargetScene = scene;
-    const result = builderFunc(scene);
-    
-    if (Array.isArray(result)) {
-        isSsnMode = true;
-        // Apply EHDG optimization to node ordering
-        const masteryMap = store.getAllMastery();
-        ssnNodes = EHDG.optimizeOrder(result, masteryMap);
-        currentSsnIndex = 0;
-        VSCR.reset();
-        const hudEl = document.getElementById(`ssn-hud-${prefix}`);
-        if (hudEl) hudEl.style.display = 'flex';
-        loadSsnNode(0);
-        return (t) => {
-            if (currentSsnAnimate && !nstfTransitioning) currentSsnAnimate(t);
-            // VSCR real-time computation
-            VSCR.computeSCS();
-            if (ssnTargetScene) VSCR.applyLOD(ssnTargetScene);
-            VSCR.updateUI();
-            // PGRF attention
-            if (threeCamera && threeRenderer) PGRF.applyAttention(ssnTargetScene, threeCamera, threeRenderer);
-        };
-    } else {
-        isSsnMode = false;
-        const hudEl = document.getElementById(`ssn-hud-${prefix}`);
-        if (hudEl) hudEl.style.display = 'none';
-        return result;
-    }
-}
-
-async function loadSsnNode(index) {
-    if (index < 0 || index >= ssnNodes.length) return;
-    const node = ssnNodes[index];
-    VSCR.trackNodeVisit(node.title);
-    VSCR.dwellStart = Date.now(); // Reset dwell for new node
-
-    if (currentSsnIndex !== index && currentSsnAnimate && ssnTargetScene) {
-        // Use NSTF cross-dissolve for transitions
-        currentSsnIndex = index;
-        currentSsnAnimate = await NSTF.crossDissolve(ssnTargetScene, currentSsnAnimate, (parentGroup) => {
-            return node.setup(parentGroup);
-        });
-    } else {
-        // First load — no transition needed
-        currentSsnIndex = index;
-        const objectsToRemove = [];
-        ssnTargetScene.children.forEach(c => {
-            if ((c.type === 'Mesh' || c.type === 'Group' || c.type === 'Points' || c.type === 'Sprite') && !c.userData.isEnvironment) {
-                objectsToRemove.push(c);
-            }
-        });
-        objectsToRemove.forEach(c => ssnTargetScene.remove(c));
-        currentSsnAnimate = node.setup(ssnTargetScene);
-    }
-
-    // Update HUD
-    const titleEl = document.getElementById(`ssn-title-${activePrefix}`);
-    const textEl = document.getElementById(`ssn-text-${activePrefix}`);
-    const progressEl = document.getElementById(`ssn-progress-${activePrefix}`);
-    if (titleEl) titleEl.textContent = node.title;
-    if (textEl) textEl.textContent = node.narrative;
-    if (progressEl) progressEl.textContent = `${index + 1} / ${ssnNodes.length}`;
-    
-    // Update SSN progress bar
-    const progressFill = document.getElementById(`ssn-bar-${activePrefix}`);
-    if (progressFill) progressFill.style.width = `${((index + 1) / ssnNodes.length) * 100}%`;
-
-    const prevBtn = document.getElementById(`ssn-prev-${activePrefix}`);
-    const nextBtn = document.getElementById(`ssn-next-${activePrefix}`);
-    if (prevBtn) { prevBtn.style.opacity = index === 0 ? '0.3' : '1'; prevBtn.style.pointerEvents = index === 0 ? 'none' : 'auto'; }
-    if (nextBtn) {
-      if (index === ssnNodes.length - 1) {
-        nextBtn.textContent = '✅ Complete Lesson';
-        nextBtn.style.background = 'linear-gradient(135deg, #10B981, #059669)';
-      } else {
-        nextBtn.textContent = 'Next Concept ➔';
-        nextBtn.style.background = '';
-      }
-    }
-}
-
-export function bindSsnControls() {
-    ['3d', 'ar'].forEach(prefix => {
-        document.getElementById(`ssn-prev-${prefix}`)?.addEventListener('click', () => {
-            VSCR.trackInteraction();
-            if (currentSsnIndex > 0) loadSsnNode(currentSsnIndex - 1);
-        });
-        document.getElementById(`ssn-next-${prefix}`)?.addEventListener('click', () => {
-            VSCR.trackInteraction();
-            if (currentSsnIndex < ssnNodes.length - 1) {
-                loadSsnNode(currentSsnIndex + 1);
-            } else {
-                showToast("🎓 Lesson Completed! Mastery updated.", "success");
-                const hudEl = document.getElementById(`ssn-hud-${prefix}`);
-                if (hudEl) hudEl.style.display = 'none';
-            }
-        });
-    });
-}
-// =============================================
-
-// === 3D Model Builders ===
-const modelBuilders = {
-  // ========== PHYSICS MODELS (NEW & REALISTIC) ==========
-  
-  // Newtonian Pendulum with Force Vectors
-  newton: (scene) => PhysicsModels.newtonianPendulum(scene),
-  
-  // Projectile Motion
-  projectile: (scene) => PhysicsModels.projectileMotion(scene),
-  
-  // Circular Orbital Motion
-  orbital: (scene) => PhysicsModels.circularMotion(scene),
-
-  // Placeholder for atom (uses SSN nodes instead)
-  atom: () => [],
-
-  // Optics: Refraction & Dispersion
-  optics: (scene) => {
-    const group = new THREE.Group();
-    
-    // Convex lens with realistic refraction
-    const lensGeo = new THREE.SphereGeometry(0.7, 64, 64, 0, Math.PI * 2, Math.PI / 4, Math.PI / 2);
-    const lensMat = new THREE.MeshPhysicalMaterial({
-      color: 0x67E8F9,
-      transmission: 0.95,
-      opacity: 1,
-      transparent: true,
-      roughness: 0.05,
-      ior: 1.52
-    });
-    const lens = new THREE.Mesh(lensGeo, lensMat);
-    group.add(lens);
-    
-    // Principal axis line
-    const axisGeo = new THREE.BufferGeometry();
-    axisGeo.setFromPoints([new THREE.Vector3(-4, 0, 0), new THREE.Vector3(4, 0, 0)]);
-    const axisMat = new THREE.LineBasicMaterial({ color: 0x64748B, transparent: true, opacity: 0.5 });
-    group.add(new THREE.Line(axisGeo, axisMat));
-    
-    // Light rays
-    const rayColor = 0xFCD34D;
-    const rayMat = new THREE.LineBasicMaterial({ color: rayColor, transparent: true, opacity: 0.7, linewidth: 2 });
-    
-    for (let i = -1.5; i <= 1.5; i += 0.5) {
-      if (Math.abs(i) < 0.1) continue; // Skip central axis
-      const rayGeo = new THREE.BufferGeometry();
-      rayGeo.setFromPoints([
-        new THREE.Vector3(-3, i, 0),
-        new THREE.Vector3(0, i, 0),
-        new THREE.Vector3(2.5, i * 0.2, 0) // Converge toward focal point
-      ]);
-      group.add(new THREE.Line(rayGeo, rayMat));
-    }
-    
-    // Focal point markers
-    const focalGeo = new THREE.SphereGeometry(0.08, 16, 16);
-    const focalMat = new THREE.MeshBasicMaterial({ color: 0xEF4444 });
-    const focal = new THREE.Mesh(focalGeo, focalMat);
-    focal.position.set(1.5, 0, 0);
-    group.add(focal);
-    
-    scene.add(group);
-    
-    return (time) => {
-      lens.rotation.z = Math.sin(time * 0.3) * 0.1;
-    };
-  },
-
-  // ========== BIOLOGY MODELS (NEW & REALISTIC) ==========
-  
-  // Realistic Plant Cell with organelles
-  plantsCell: (scene) => BiologyModels.plantCell(scene),
-  
-  // DNA Double Helix (realistic geometry)
-  dna: (scene) => BiologyModels.dnaHelix(scene),
-  
-  // Protein Structure (alpha helices, beta sheets)
-  protein: (scene) => BiologyModels.proteinStructure(scene),
-  
-  // Placeholder for generic cell
-  cell: () => [],
-
-  // ========== CHEMISTRY MODELS (NEW & REALISTIC) ==========
-  
-  // Water Molecule (H2O with bond angles & electron clouds)
-  water: (scene) => ChemistryModels.waterMolecule(scene),
-  
-  // Methane Tetrahedral Structure
-  methane: (scene) => ChemistryModels.methane(scene),
-  
-  // Placeholder for bonds
-  bonds: (scene) => ChemistryModels.waterMolecule(scene),
-
-  // ========== ENGINEERING MODELS (NEW & REALISTIC) ==========
-  
-  // Gear System with meshing gears
-  gears: (scene) => EngineeringModels.gearSystem(scene),
-  
-  // Placeholder for bridges (will add later)
-  bridges: (scene) => {
-    const bridgeGroup = new THREE.Group();
-    
-    // Simple truss bridge structure
-    const beamGeo = new THREE.BoxGeometry(3, 0.1, 0.1);
-    const steelMat = new THREE.MeshStandardMaterial({ color: 0x4B5563, metalness: 0.8, roughness: 0.1 });
-    const mainBeam = new THREE.Mesh(beamGeo, steelMat);
-    bridgeGroup.add(mainBeam);
-    
-    // Support towers
-    for (let x of [-1.5, 1.5]) {
-      const towerGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.2, 32);
-      const tower = new THREE.Mesh(towerGeo, steelMat);
-      tower.position.set(x, -0.6, 0);
-      bridgeGroup.add(tower);
-    }
-    
-    // Diagonal bracing
-    const bracingGeo = new THREE.CylinderGeometry(0.04, 0.04, Math.sqrt(2.25 + 0.36), 16);
-    for (let i = 0; i < 4; i++) {
-      const bracing = new THREE.Mesh(bracingGeo, steelMat);
-      bracing.position.set(-1.5 + i * 1, -0.3, 0);
-      bracing.rotation.z = i % 2 === 0 ? Math.PI / 4 : -Math.PI / 4;
-      bridgeGroup.add(bracing);
-    }
-    
-    scene.add(bridgeGroup);
-    return (time) => {
-      bridgeGroup.rotation.y = Math.sin(time * 0.2) * 0.05;
-    };
-  },
-
-  // ========== MATH MODELS (NEW & REALISTIC) ==========
-  
-  // Möbius Strip
-  mobiusStrip: (scene) => MathModels.mobiusStrip(scene),
-  
-  // Placeholder for calculus
-  calculus: (scene) => {
-    const group = new THREE.Group();
-    
-    // 3D sine wave (parametric curve)
-    const points = [];
-    for (let t = -Math.PI; t <= Math.PI; t += 0.1) {
-      points.push(new THREE.Vector3(t, Math.sin(t), Math.cos(t * 0.5)));
-    }
-    
-    const geo = new THREE.BufferGeometry();
-    const tubeGeo = new THREE.TubeGeometry(
-      new THREE.LineCurve3(points[0], points[points.length - 1]),
-      50,
-      0.1,
-      8
-    );
-    
-    // Gradient color curve
-    const curveMat = new THREE.MeshPhysicalMaterial({
-      color: 0x8B5CF6,
-      metalness: 0.3,
-      roughness: 0.4,
-      emissive: 0x5B21B6,
-      emissiveIntensity: 0.2
-    });
-    
-    const curveMesh = new THREE.Mesh(tubeGeo, curveMat);
-    group.add(curveMesh);
-    
-    scene.add(group);
-    return (time) => {
-      group.rotation.x = time * 0.2;
-      group.rotation.z = time * 0.3;
-    };
-  },
-  
-  // Placeholder for geometry
-  geometry: (scene) => {
-    const group = new THREE.Group();
-    
-    // Platonic solids
-    const solids = [
-      { geo: new THREE.TetrahedronGeometry(0.5), color: 0xEF4444, pos: [-1, 0, 0] },
-      { geo: new THREE.OctahedronGeometry(0.5), color: 0x10B981, pos: [0, 0, 0] },
-      { geo: new THREE.IcosahedronGeometry(0.5), color: 0x3B82F6, pos: [1, 0, 0] }
-    ];
-    
-    solids.forEach(({ geo, color, pos }) => {
-      const mat = new THREE.MeshPhysicalMaterial({
-        color,
-        metalness: 0.4,
-        roughness: 0.3,
-        wireframe: false
-      });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.fromArray(pos);
-      group.add(mesh);
-    });
-    
-    scene.add(group);
-    return (time) => {
-      solids.forEach((_, i) => {
-        group.children[i].rotation.x = time * (0.5 + i * 0.2);
-        group.children[i].rotation.y = time * (0.8 - i * 0.3);
-      });
-    };
-  },
-  
-  // Placeholder for pyramid (historical)
-  pyramid: (scene) => {
-    const group = new THREE.Group();
-    
-    // Pyramid base
-    const baseGeo = new THREE.BoxGeometry(2, 0.1, 2);
-    const baseMat = new THREE.MeshStandardMaterial({ color: 0xD4A574, roughness: 0.6 });
-    const base = new THREE.Mesh(baseGeo, baseMat);
-    base.position.y = -1;
-    group.add(base);
-    
-    // Pyramid structure (cone)
-    const pyramidGeo = new THREE.ConeGeometry(1.4, 2, 4);
-    const pyramidMat = new THREE.MeshStandardMaterial({
-      color: 0xC4A060,
-      roughness: 0.7,
-      metalness: 0.1
-    });
-    const pyramid = new THREE.Mesh(pyramidGeo, pyramidMat);
-    pyramid.position.y = 0;
-    group.add(pyramid);
-    
-    // Edge lines
-    const edgesGeo = new THREE.EdgesGeometry(pyramidGeo);
-    const edgesMat = new THREE.LineBasicMaterial({ color: 0x92400E, transparent: true, opacity: 0.4 });
-    const edges = new THREE.LineSegments(edgesGeo, edgesMat);
-    edges.position.y = 0;
-    group.add(edges);
-    
-    scene.add(group);
-    return (time) => {
-      group.rotation.y = time * 0.25;
-    };
-  },
-  
-  // Placeholder for colosseum
-  colosseum: (scene) => {
-    const group = new THREE.Group();
-    
-    // Outer wall (circular structure)
-    const wallGeo = new THREE.CylinderGeometry(2, 2.2, 2, 64, 1, true);
-    const wallMat = new THREE.MeshPhysicalMaterial({
-      color: 0xC4A882,
-      roughness: 0.7,
-      metalness: 0.1,
-      wireframe: false
-    });
-    group.add(new THREE.Mesh(wallGeo, wallMat));
-    
-    // Arches (columns around perimeter)
-    for (let i = 0; i < 24; i++) {
-      const angle = (i / 24) * Math.PI * 2;
-      const colGeo = new THREE.CylinderGeometry(0.08, 0.08, 2, 32);
-      const colMat = new THREE.MeshStandardMaterial({ color: 0xA08060, roughness: 0.8 });
-      const column = new THREE.Mesh(colGeo, colMat);
-      column.position.set(Math.cos(angle) * 2.1, 0, Math.sin(angle) * 2.1);
-      group.add(column);
-    }
-    
-    // Arena floor
-    const floorGeo = new THREE.CircleGeometry(1.8, 64);
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0xD4B8A0, roughness: 0.8 });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -1;
-    group.add(floor);
-    
-    scene.add(group);
-    return (time) => {
-      group.rotation.y = time * 0.15;
-    };
-  }
-};
-
-// Create fallback for any lesson not explicitly defined
-function getModelBuilder(lessonId) {
-  return modelBuilders[lessonId] || modelBuilders.atom;
-}
+// ============================================================
+//  RENDER — Main Entry Point
+// ============================================================
 
 export function renderARLearning(container) {
-  sessionStart = Date.now();
-        const orbitNames = ['n=1 (K shell)', 'n=2 (L shell)', 'n=3 (M shell)'];
-        for (let i = 0; i < 3; i++) {
-          const orbitR = 1.2 + i * 0.7;
-          const orbit = new THREE.Mesh(new THREE.TorusGeometry(orbitR, 0.02, 8, 128), new THREE.MeshBasicMaterial({ color: orbitColors[i], transparent: true, opacity: 0.6 }));
-          orbit.rotation.set(Math.PI / 2 + (i * Math.PI / 6), i * Math.PI / 4, 0);
-          orbits.push(orbit); scene.add(orbit);
-          const electron = new THREE.Mesh(new THREE.SphereGeometry(0.15, 32, 32), new THREE.MeshPhongMaterial({ color: 0x67E8F9, emissive: 0x06B6D4, emissiveIntensity: 1.0 }));
-          electron._orbitR = orbitR; electron._i = i;
-          electrons.push(electron); scene.add(electron);
-          // Per-orbit label
-          const oLabel = create3DLabel(orbitNames[i], `#${orbitColors[i].toString(16).padStart(6,'0')}`, 0.3);
-          oLabel.position.set(orbitR + 0.5, 0.4 * i, 0); scene.add(oLabel);
-        }
-        const electronLabel = create3DLabel("Electron Orbits", "#06B6D4", 0.55);
-        electronLabel.position.set(0, 3.0, 0); scene.add(electronLabel);
-        return (time) => {
-          electrons.forEach((e) => {
-            const a = time * (3 - e._i * 0.5);
-            e.position.set(Math.cos(a) * e._orbitR, Math.sin(a) * e._orbitR * Math.cos(e._i * Math.PI / 6), Math.sin(a) * e._orbitR * Math.sin(e._i * Math.PI / 6));
-          });
-        };
-      }
-    },
-    {
-      title: "Quantum Probability Cloud",
-      narrative: "The Schrödinger equation replaces exact orbits with probability density functions |ψ(r)|². Electrons exist as 'clouds' where denser regions indicate higher probability of detection. This is the modern atomic model used in quantum chemistry.",
-      setup: (scene) => {
-        const nucleus = new THREE.Mesh(new THREE.SphereGeometry(0.2, 64, 64), new THREE.MeshPhysicalMaterial({ color: 0x7C3AED, emissive: 0x5B21B6, emissiveIntensity: 0.8 }));
-        scene.add(nucleus);
-        const nucLabel = create3DLabel("Nucleus", "#A78BFA", 0.3);
-        nucLabel.position.set(0, 0.6, 0); scene.add(nucLabel);
-        
-        const cloudGeo = new THREE.BufferGeometry();
-        const cloudPts = [], cloudColors = [];
-        for (let i=0; i<5000; i++) {
-          const r = 0.3 + Math.random() * 2.5;
-          const theta = Math.random() * Math.PI * 2;
-          const phi = Math.acos(2 * Math.random() - 1);
-          cloudPts.push(r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
-          // Color by distance: inner=purple, outer=cyan
-          const t = r / 2.8;
-          cloudColors.push(0.49 + (1-t)*0.2, 0.23 + t*0.7, 0.93);
-        }
-        cloudGeo.setAttribute('position', new THREE.Float32BufferAttribute(cloudPts, 3));
-        cloudGeo.setAttribute('color', new THREE.Float32BufferAttribute(cloudColors, 3));
-        const cloud = new THREE.Points(cloudGeo, new THREE.PointsMaterial({ size: 0.05, transparent: true, opacity: 0.7, vertexColors: true, blending: THREE.AdditiveBlending }));
-        scene.add(cloud);
-        const cloudLabel = create3DLabel("|ψ(r)|² Probability Cloud", "#67E8F9", 0.55);
-        cloudLabel.position.set(0, 3.5, 0); scene.add(cloudLabel);
-        const densityLabel = create3DLabel("High Density = High Probability", "#A78BFA", 0.35);
-        densityLabel.position.set(0, -2.5, 0); scene.add(densityLabel);
-        return (time) => { cloud.rotation.y = time * 0.1; cloud.rotation.z = time * 0.05; };
-      }
-    }
-  ],
-  optics: (scene) => {
-    // Realistic Convex Lens
-    const lensGeo = new THREE.SphereGeometry(0.8, 32, 32, 0, Math.PI * 2, Math.PI / 3, Math.PI / 3);
-    const lensMat = new THREE.MeshPhysicalMaterial({ color: 0x67E8F9, transmission: 0.9, opacity: 1, transparent: true, roughness: 0, ior: 1.5, thickness: 0.5 });
-    const lens = new THREE.Mesh(lensGeo, lensMat);
-    scene.add(lens);
-    
-    // Principal axis
-    const axisMat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.5 });
-    const axisGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-3, 0, 0), new THREE.Vector3(3, 0, 0)]);
-    scene.add(new THREE.Line(axisGeo, axisMat));
-    
-    // Level 1: Basic static yellow rays
-    const basicRays = new THREE.Group();
-    const rayMat = new THREE.LineBasicMaterial({ color: 0xFCD34D });
-    for (let i = -1; i <= 1; i += 0.5) {
-      if(i === 0) continue;
-      const pts = [new THREE.Vector3(-3, i, 0), new THREE.Vector3(0, i, 0), new THREE.Vector3(1.5, 0, 0)];
-      basicRays.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), rayMat));
-    }
-    scene.add(basicRays);
-
-    // Level 2/3: Animated Light Particles & Chromatic Dispersion
-    const particleCount = 200;
-    const pGeo = new THREE.BufferGeometry();
-    const pPos = new Float32Array(particleCount * 3);
-    const pColor = new Float32Array(particleCount * 3);
-    
-    const colors = [new THREE.Color(0xEF4444), new THREE.Color(0x10B981), new THREE.Color(0x3B82F6)]; // RGB Dispersion
-    for(let i=0; i<particleCount; i++) {
-        pPos[i*3] = -3 + Math.random()*6; // X
-        pPos[i*3+1] = (Math.random() > 0.5 ? 1 : -1) * (0.2 + Math.random()*0.8); // Y
-        pPos[i*3+2] = 0; // Z
-        pColor[i*3] = 1; pColor[i*3+1] = 0.8; pColor[i*3+2] = 0.2; // Yellow
-    }
-    pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-    pGeo.setAttribute('color', new THREE.BufferAttribute(pColor, 3));
-    
-    const pMat = new THREE.PointsMaterial({ size: 0.05, vertexColors: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
-    const photons = new THREE.Points(pGeo, pMat);
-    scene.add(photons);
-
-    let lastComplexity = 1;
-
-    return (time) => {
-      lens.rotation.y = Math.sin(time * 0.5) * 0.1;
-      
-      // SCM Level Triggers
-      if (scmState.complexityLevel >= 2 && lastComplexity < 2) {
-        lastComplexity = 2;
-        basicRays.visible = false; // Turn off rigid lines
-        pMat.opacity = 0.8; // Turn on moving photons
-      }
-
-      // Moving Photons Animation
-      if (scmState.complexityLevel >= 2) {
-        const positions = photons.geometry.attributes.position.array;
-        const colorsAttr = photons.geometry.attributes.color.array;
-        
-        for(let i=0; i<particleCount; i++) {
-          let x = positions[i*3];
-          let y = positions[i*3+1];
-          let z = positions[i*3+2];
-          
-          x += 0.05; // Move right
-          if (x > 3) x = -3; // Loop
-          
-          // Lens Refraction logic
-          if (x > 0 && x < 1.5) {
-            y = y > 0 ? y - 0.02 * (y/1) : y + 0.02 * (-y/1); // Converge
-          } else if (x >= 1.5) {
-            y = y > 0 ? y + 0.02 : y - 0.02; // Diverge after focal point
-          }
-
-          // Level 3 SCM: Chromatic Dispersion (Prism Effect after focal point)
-          if (scmState.complexityLevel >= 3 && x > 1.5) {
-             const band = i % 3; // R, G, or B
-             y += (band === 0 ? 0.02 : band === 2 ? -0.02 : 0); // Diverge colors
-             colorsAttr[i*3] = colors[band].r;
-             colorsAttr[i*3+1] = colors[band].g;
-             colorsAttr[i*3+2] = colors[band].b;
-          } else {
-             colorsAttr[i*3] = 1; colorsAttr[i*3+1] = 0.8; colorsAttr[i*3+2] = 0.2; // Yellow
-          }
-
-          positions[i*3] = x;
-          positions[i*3+1] = y;
-        }
-        photons.geometry.attributes.position.needsUpdate = true;
-        photons.geometry.attributes.color.needsUpdate = true;
-      }
-    };
-  },
-  waves: (scene) => {
-    // 3D sine wave
-    const points = [];
-    for (let x = -4; x <= 4; x += 0.1) { points.push(new THREE.Vector3(x, 0, 0)); }
-    const waveGeo = new THREE.BufferGeometry().setFromPoints(points);
-    const waveMat = new THREE.LineBasicMaterial({ color: 0x7C3AED });
-    const wave = new THREE.Line(waveGeo, waveMat);
-    wave.name = 'wave';
-    scene.add(wave);
-    return (time) => {
-      const pos = wave.geometry.attributes.position;
-      for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i);
-        pos.setY(i, Math.sin(x * 2 + time * 3) * 0.5);
-      }
-      pos.needsUpdate = true;
-    };
-  },
-  // BIOLOGY
-  dna: (scene) => {
-    // DNA double helix
-    const helixMat1 = new THREE.MeshPhongMaterial({ color: 0x7C3AED });
-    const helixMat2 = new THREE.MeshPhongMaterial({ color: 0x06B6D4 });
-    const baseMat = new THREE.MeshPhongMaterial({ color: 0x10B981 });
-    for (let i = 0; i < 40; i++) {
-      const t = i * 0.3;
-      const y = i * 0.1 - 2;
-      const x1 = Math.cos(t) * 0.8, z1 = Math.sin(t) * 0.8;
-      const x2 = Math.cos(t + Math.PI) * 0.8, z2 = Math.sin(t + Math.PI) * 0.8;
-      const s1 = new THREE.Mesh(new THREE.SphereGeometry(0.08), helixMat1);
-      s1.position.set(x1, y, z1);
-      scene.add(s1);
-      const s2 = new THREE.Mesh(new THREE.SphereGeometry(0.08), helixMat2);
-      s2.position.set(x2, y, z2);
-      scene.add(s2);
-      if (i % 3 === 0) {
-        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, Math.sqrt((x2-x1)**2 + (z2-z1)**2)), baseMat);
-        base.position.set((x1+x2)/2, y, (z1+z2)/2);
-        base.rotation.z = Math.PI/2;
-        base.lookAt(x2, y, z2);
-        scene.add(base);
-      }
-    }
-    return (time) => { scene.rotation.y = time * 0.3; };
-  },
-  cell: () => [
-    {
-      title: "The Cell Cross-Section",
-      narrative: "The cell membrane encases a vast complex of organelles. In this cross-section, you can see the nucleus at the core, surrounded by the rough ER, mitochondria (orange), golgi apparatus (green), and lysosomes.",
-      setup: (scene) => {
-        const cellGroup = new THREE.Group();
-        
-        // 1. Outer Cell Wall (Half Sphere)
-        const wallMat = new THREE.MeshPhysicalMaterial({ color: 0xE2E8F0, side: THREE.DoubleSide, roughness: 0.4, clearcoat: 0.3 });
-        const wall = new THREE.Mesh(new THREE.SphereGeometry(2.0, 64, 64, 0, Math.PI), wallMat);
-        cellGroup.add(wall);
-
-        // 2. Cytoplasm Flat Cut Surface
-        const cytoMat = new THREE.MeshStandardMaterial({ color: 0xF8FAFC });
-        const cytoplasm = new THREE.Mesh(new THREE.CircleGeometry(2.0, 64), cytoMat);
-        cytoplasm.rotation.y = -Math.PI / 2; // Flat on YZ plane, facing -X
-        cellGroup.add(cytoplasm);
-
-        // 3. The Nucleus (Bulging from center)
-        const nucShell = new THREE.Mesh(new THREE.SphereGeometry(0.6, 64, 64, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0x9CA3AF, side: THREE.DoubleSide, roughness: 0.2, metalness: 0.3 }));
-        nucShell.rotation.y = Math.PI; // Bulges to -X
-        cellGroup.add(nucShell);
-
-        const nucCore = new THREE.Mesh(new THREE.SphereGeometry(0.55, 64, 64, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0x1F2937 }));
-        nucCore.rotation.y = Math.PI;
-        cellGroup.add(nucCore);
-
-        // Nucleus Pores
-        for (let i=0; i<15; i++) {
-          const pore = new THREE.Mesh(new THREE.CircleGeometry(0.05, 16), new THREE.MeshBasicMaterial({ color: 0x000000 }));
-          const phi = Math.acos(2 * Math.random() - 1);
-          const theta = -Math.PI + Math.random() * Math.PI; // Negative X side
-          const r = 0.56;
-          pore.position.set(r*Math.sin(phi)*Math.cos(theta), r*Math.cos(phi), r*Math.sin(phi)*Math.sin(theta));
-          pore.lookAt(0,0,0);
-          cellGroup.add(pore);
-        }
-
-        // 4. Rough ER (Pink wavy ribbons around nucleus)
-        const erMat = new THREE.MeshStandardMaterial({ color: 0xD8B4E2, side: THREE.DoubleSide });
-        for (let i=0; i<5; i++) {
-          const er = new THREE.Mesh(new THREE.TorusGeometry(0.75 + i*0.15, 0.04, 16, 64, Math.PI), erMat);
-          er.rotation.x = Math.PI / 2; 
-          er.rotation.y = Math.PI / 2;
-          er.position.x = -0.05; // Slightly outward
-          cellGroup.add(er);
-        }
-
-        // 5. Golgi Apparatus (Green wavy stacks)
-        const golgiGroup = new THREE.Group();
-        const golgiMat = new THREE.MeshStandardMaterial({ color: 0x86EFAC, side: THREE.DoubleSide });
-        for (let i=0; i<4; i++) {
-          const g = new THREE.Mesh(new THREE.TorusGeometry(0.4 - i*0.05, 0.05, 16, 32, Math.PI * 0.8), golgiMat);
-          g.position.set(0, 0, i * 0.08); 
-          golgiGroup.add(g);
-        }
-        golgiGroup.position.set(-0.05, -1.0, -0.8);
-        golgiGroup.rotation.x = Math.PI / 2;
-        golgiGroup.rotation.y = -Math.PI / 4;
-        cellGroup.add(golgiGroup);
-
-        // 6. Mitochondria (Orange capsules)
-        const mitoMat = new THREE.MeshStandardMaterial({ color: 0xF97316, roughness: 0.3 });
-        for (let i=0; i<7; i++) {
-          const mito = new THREE.Mesh(new THREE.CapsuleGeometry(0.15, 0.35, 16, 16), mitoMat);
-          const angle = Math.random() * Math.PI * 2;
-          const radius = 0.9 + Math.random() * 0.8; 
-          mito.position.set(-0.1, Math.sin(angle)*radius, Math.cos(angle)*radius);
-          mito.rotation.set(Math.random()*Math.PI, 0, Math.PI/2 + Math.random()*Math.PI);
-          cellGroup.add(mito);
-        }
-
-        // 7. Lysosomes & Vacuoles (Colorful spheres)
-        const colors = [0xEF4444, 0x8B5CF6, 0xFBBF24, 0x3B82F6];
-        for (let i=0; i<20; i++) {
-          const color = colors[Math.floor(Math.random() * colors.length)];
-          const pMesh = new THREE.Mesh(new THREE.SphereGeometry(0.06 + Math.random()*0.04, 16, 16), new THREE.MeshStandardMaterial({ color }));
-          const angle = Math.random() * Math.PI * 2;
-          const radius = 0.8 + Math.random() * 1.0;
-          pMesh.position.set(-0.05, Math.sin(angle)*radius, Math.cos(angle)*radius);
-          cellGroup.add(pMesh);
-        }
-
-        // Labels
-        const cellLabel = create3DLabel("Animal Cell", "#64748B", 0.6);
-        cellLabel.position.set(-0.5, 2.5, 0);
-        cellGroup.add(cellLabel);
-
-        // Rotate group so the flat cut (at X=0 facing -X) faces the camera (+Z)
-        cellGroup.rotation.y = -Math.PI / 2;
-        cellGroup.rotation.z = Math.PI / 8; // Tilt slightly downward to see inside perfectly
-        scene.add(cellGroup);
-
-        return (time) => { cellGroup.rotation.x = Math.sin(time*0.2)*0.1; };
-      }
-    },
-    {
-      title: "The Command Center",
-      narrative: "The Nucleus contains the cell's DNA. This dense structure protects the genetic code and sends RNA messages through nuclear pores to synthesize proteins.",
-      setup: (scene) => {
-        const nucGroup = new THREE.Group();
-        
-        // Large Nucleus Shell
-        const nucShell = new THREE.Mesh(new THREE.SphereGeometry(1.5, 64, 64, 0, Math.PI), new THREE.MeshPhysicalMaterial({ color: 0x9CA3AF, side: THREE.DoubleSide, roughness: 0.3, metalness: 0.2 }));
-        nucShell.rotation.y = Math.PI; 
-        nucGroup.add(nucShell);
-
-        const nucCore = new THREE.Mesh(new THREE.SphereGeometry(1.4, 64, 64, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0x111827 }));
-        nucCore.rotation.y = Math.PI;
-        nucGroup.add(nucCore);
-
-        // DNA Helix inside
-        const dnaGroup = new THREE.Group();
-        for(let i=0; i<40; i++) {
-           const curve = new THREE.Mesh(new THREE.TorusKnotGeometry(0.6+(i*0.01), 0.02, 128, 16), new THREE.MeshBasicMaterial({color: 0x60A5FA}));
-           curve.rotation.x = Math.random() * Math.PI;
-           dnaGroup.add(curve);
-        }
-        dnaGroup.position.x = -0.5; // pull forward
-        nucGroup.add(dnaGroup);
-
-        const nucLabel = create3DLabel("Nucleus & DNA", "#818CF8", 0.7);
-        nucLabel.position.set(-1, 2.2, 0); nucGroup.add(nucLabel);
-
-        nucGroup.rotation.y = -Math.PI / 2;
-        nucGroup.rotation.z = Math.PI / 6;
-        scene.add(nucGroup);
-
-        return (time) => { dnaGroup.rotation.set(time * 0.1, time * 0.2, 0); nucGroup.rotation.x = Math.sin(time*0.5)*0.1; };
-      }
-    },
-    {
-      title: "The Powerhouse",
-      narrative: "Mitochondria generate chemical energy in the form of ATP. The complex inner folds (cristae) precisely maximize surface area for these vital biochemical reactions.",
-      setup: (scene) => {
-        const targetMito = new THREE.Group();
-        
-        // Transparent outer shell
-        const mitoShell = new THREE.Mesh(new THREE.CapsuleGeometry(1.0, 2.5, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xF97316, transparent: true, opacity: 0.4, transmission: 0.8, roughness: 0.1 }));
-        targetMito.add(mitoShell);
-        
-        // Inner cristae (complex folded structure)
-        const cristaeGeo = new THREE.TorusKnotGeometry(0.6, 0.2, 256, 32, 3, 7);
-        const cristae = new THREE.Mesh(cristaeGeo, new THREE.MeshStandardMaterial({ color: 0xFBBF24, roughness: 0.2, emissive: 0x92400E, emissiveIntensity: 0.5 }));
-        targetMito.add(cristae);
-
-        // Glowing ATP particles Flowing
-        const atpPts = [];
-        for(let i=0; i<400; i++) {
-           atpPts.push((Math.random()-0.5)*1.8, (Math.random()-0.5)*3.5, (Math.random()-0.5)*1.8);
-        }
-        const atpGeo = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(atpPts, 3));
-        const atpMat = new THREE.PointsMaterial({ color: 0x67E8F9, size: 0.08, transparent: true, blending: THREE.AdditiveBlending });
-        const atpCloud = new THREE.Points(atpGeo, atpMat);
-        targetMito.add(atpCloud);
-        
-        const atpLabel = create3DLabel("Mitochondrial Cristae", "#FBBF24", 0.7);
-        atpLabel.position.set(0, 3.2, 0);
-        targetMito.add(atpLabel);
-        
-        targetMito.rotation.set(0.4, -0.6, 0);
-        scene.add(targetMito);
-
-        return (time) => {
-          targetMito.rotation.y += 0.003;
-          cristae.rotation.z = time * 0.1;
-          const positions = atpCloud.geometry.attributes.position.array;
-          for(let i=0; i<400; i++) {
-            positions[i*3+1] += 0.015; // Flow ATP upwards smoothly
-            if (positions[i*3+1] > 1.75) positions[i*3+1] = -1.75;
-          }
-          atpCloud.geometry.attributes.position.needsUpdate = true;
-        };
-      }
-    }
-  ],
-  water: () => [
-    {
-      title: "H2O Macro Droplet",
-      narrative: "Water in its macroscopic liquid state. The molecules are loosely packed and flow freely. Surface tension creates macroscopic droplets.",
-      setup: (scene) => {
-        const droplet = new THREE.Mesh(new THREE.SphereGeometry(1.5, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0x67E8F9, transmission: 0.9, opacity: 1, transparent: true, roughness: 0.0, ior: 1.33 }));
-        scene.add(droplet);
-        const dropLabel = create3DLabel("Water Droplet", "#67E8F9", 0.6);
-        dropLabel.position.set(0, 2, 0); scene.add(dropLabel);
-        return (time) => { droplet.scale.y = 1 + Math.sin(time*2)*0.05; };
-      }
-    },
-    {
-      title: "The H2O Molecule",
-      narrative: "Zooming in, we see the individual H2O molecule. It consists of one central oxygen atom securely bound to two hydrogen atoms, forming a uniquely bent V-shape.",
-      setup: (scene) => {
-        const mesoGroup = new THREE.Group();
-        const oxygen = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xEF4444, emissive: 0x7F1D1D }));
-        mesoGroup.add(oxygen);
-        
-        const angle = 104.5 * Math.PI / 180;
-        const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xF1F5F9, emissive: 0x94A3B8 }));
-        h1.position.set(Math.sin(angle/2) * 1.2, Math.cos(angle/2) * 1.2, 0);
-        mesoGroup.add(h1);
-        
-        const h2 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xF1F5F9, emissive: 0x94A3B8 }));
-        h2.position.set(-Math.sin(angle/2) * 1.2, Math.cos(angle/2) * 1.2, 0);
-        mesoGroup.add(h2);
-        
-        const molLabel = create3DLabel("H2O Molecule", "#EF4444", 0.4);
-        molLabel.position.set(0, 2, 0); mesoGroup.add(molLabel);
-        scene.add(mesoGroup);
-        return (time) => { mesoGroup.rotation.y = time * 0.5; };
-      }
-    },
-    {
-      title: "Covalent Bonds",
-      narrative: "The 104.5-degree angle is rigid. The oxygen and hydrogen atoms share electrons in what is known as a covalent bond to keep the molecule structurally stable.",
-      setup: (scene) => {
-        const microGroup = new THREE.Group();
-        const oxygen = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xEF4444, emissive: 0x7F1D1D, transmission: 0.5, transparent: true }));
-        microGroup.add(oxygen);
-        
-        const angle = 104.5 * Math.PI / 180;
-        const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xF1F5F9, emissive: 0x94A3B8 }));
-        h1.position.set(Math.sin(angle/2) * 1.2, Math.cos(angle/2) * 1.2, 0);
-        microGroup.add(h1);
-        
-        const h2 = new THREE.Mesh(new THREE.SphereGeometry(0.3, 32, 32), new THREE.MeshPhysicalMaterial({ color: 0xF1F5F9, emissive: 0x94A3B8 }));
-        h2.position.set(-Math.sin(angle/2) * 1.2, Math.cos(angle/2) * 1.2, 0);
-        microGroup.add(h2);
-
-        const bond1 = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.02, 16, 64), new THREE.MeshBasicMaterial({ color: 0x67E8F9, transparent: true, opacity: 0.8 }));
-        bond1.position.copy(h1.position.clone().multiplyScalar(0.5));
-        bond1.lookAt(h1.position);
-        microGroup.add(bond1);
-
-        const bond2 = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.02, 16, 64), new THREE.MeshBasicMaterial({ color: 0x67E8F9, transparent: true, opacity: 0.8 }));
-        bond2.position.copy(h2.position.clone().multiplyScalar(0.5));
-        bond2.lookAt(h2.position);
-        microGroup.add(bond2);
-        
-        const bondLabel = create3DLabel("104.5° Covalent Bonds", "#F59E0B", 0.4);
-        bondLabel.position.set(0, -1, 0); microGroup.add(bondLabel);
-        
-        scene.add(microGroup);
-        return (time) => { microGroup.rotation.y = time * 0.5; bond1.rotation.z = time * 4; bond2.rotation.z = time * 4; };
-      }
-    }
-  ],
-  bonds: (scene) => { return modelBuilders.water(scene); },
-  // ENGINEERING
-  gears: (scene) => {
-    const createGear = (radius, teeth, x, y, color) => {
-      const shape = new THREE.Shape();
-      const innerR = radius * 0.7;
-      for (let i = 0; i < teeth; i++) {
-        const a1 = (i / teeth) * Math.PI * 2;
-        const a2 = ((i + 0.3) / teeth) * Math.PI * 2;
-        const a3 = ((i + 0.5) / teeth) * Math.PI * 2;
-        const a4 = ((i + 0.8) / teeth) * Math.PI * 2;
-        if (i === 0) shape.moveTo(Math.cos(a1) * innerR, Math.sin(a1) * innerR);
-        shape.lineTo(Math.cos(a2) * innerR, Math.sin(a2) * innerR);
-        shape.lineTo(Math.cos(a2) * radius, Math.sin(a2) * radius);
-        shape.lineTo(Math.cos(a3) * radius, Math.sin(a3) * radius);
-        shape.lineTo(Math.cos(a4) * innerR, Math.sin(a4) * innerR);
-      }
-      const extrudeSettings = { depth: 0.3, bevelEnabled: false };
-      const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-      const mesh = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ color }));
-      mesh.position.set(x, y, 0);
-      return mesh;
-    };
-    const gear1 = createGear(1, 12, -1.1, 0, 0x7C3AED);
-    gear1.name = 'gear1';
-    scene.add(gear1);
-    const gear2 = createGear(0.7, 8, 0.7, 0, 0x06B6D4);
-    gear2.name = 'gear2';
-    scene.add(gear2);
-    return (time) => {
-      gear1.rotation.z = time * 0.5;
-      gear2.rotation.z = -time * 0.5 * (12/8);
-    };
-  },
-  bridges: (scene) => {
-    // Truss bridge
-    const mat = new THREE.MeshPhongMaterial({ color: 0x06B6D4 });
-    const beam = (x1,y1,z1,x2,y2,z2) => {
-      const dir = new THREE.Vector3(x2-x1,y2-y1,z2-z1);
-      const len = dir.length();
-      const geo = new THREE.CylinderGeometry(0.03, 0.03, len);
-      const m = new THREE.Mesh(geo, mat);
-      m.position.set((x1+x2)/2,(y1+y2)/2,(z1+z2)/2);
-      m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.normalize());
-      scene.add(m);
-    };
-    // Bottom chord
-    for (let i = -3; i < 3; i++) { beam(i,0,0,i+1,0,0); beam(i,0,0.8,i+1,0,0.8); }
-    // Top chord
-    for (let i = -2; i < 2; i++) { beam(i,1.5,0.4,i+1,1.5,0.4); }
-    // Verticals & diagonals
-    for (let i = -3; i <= 3; i++) { beam(i,0,0,i,0,0.8); if(i>=-2&&i<=2) { beam(i,0,0,i,1.5,0.4); beam(i,0,0.8,i,1.5,0.4); } }
-    // Road surface
-    const road = new THREE.Mesh(new THREE.BoxGeometry(6, 0.05, 0.8), new THREE.MeshPhongMaterial({ color: 0x475569 }));
-    scene.add(road);
-    return (time) => { scene.rotation.y = time * 0.15; };
-  },
-  // MATH
-  calculus: (scene) => {
-    // ODT Macro: 3D Surface Field
-    const macroGroup = new THREE.Group();
-    const geo = new THREE.PlaneGeometry(6, 6, 50, 50);
-    const pos = geo.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i), y = pos.getY(i);
-        pos.setZ(i, Math.sin(x*1.5)*Math.cos(y*1.5)*0.5);
-    }
-    geo.computeVertexNormals();
-    const surfaceMat = new THREE.MeshPhysicalMaterial({ color: 0x7C3AED, side: THREE.DoubleSide, transparent: true, opacity: 0.9, wireframe: true });
-    const surface = new THREE.Mesh(geo, surfaceMat);
-    surface.rotation.x = -Math.PI / 4;
-    macroGroup.add(surface);
-    scene.add(macroGroup);
-
-    // Target point for ODT Traversal (x=1, y=1)
-    const tx = 1, ty = 1;
-
-    // ODT Meso: Tangent Plane geometry
-    const mesoGroup = new THREE.Group();
-    const tanPlane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ color: 0xFCD34D, transparent: true, opacity: 0, side: THREE.DoubleSide }));
-    tanPlane.position.set(tx, ty, Math.sin(tx*1.5)*Math.cos(ty*1.5)*0.5 + 0.01);
-    
-    // Partial derivative slopes (dz/dx, dz/dy)
-    const dzdx = 1.5 * Math.cos(tx*1.5)*Math.cos(ty*1.5)*0.5;
-    const dzdy = -1.5 * Math.sin(tx*1.5)*Math.sin(ty*1.5)*0.5;
-    
-    const normal = new THREE.Vector3(-dzdx, -dzdy, 1).normalize();
-    const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,0,1), normal);
-    tanPlane.applyQuaternion(quaternion);
-    mesoGroup.add(tanPlane);
-    mesoGroup.rotation.x = -Math.PI / 4;
-    scene.add(mesoGroup);
-
-    // ODT Micro: Gradient Arrow pointing uphill
-    const arrowHelper = new THREE.ArrowHelper(new THREE.Vector3(dzdx, dzdy, 0).normalize(), tanPlane.position, 1, 0xEF4444);
-    arrowHelper.line.material.transparent = true; arrowHelper.line.material.opacity = 0;
-    arrowHelper.cone.material.transparent = true; arrowHelper.cone.material.opacity = 0;
-    mesoGroup.add(arrowHelper);
-
-    return (time) => {
-      // Flow surface
-      for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i), y = pos.getY(i);
-        pos.setZ(i, Math.sin(x*1.5 + time*0.5)*Math.cos(y*1.5 + time*0.5)*0.5);
-      }
-      pos.needsUpdate = true;
-      surface.geometry.computeVertexNormals();
-
-      if (time < 15) {
-        macroGroup.rotation.y = time * 0.1;
-        mesoGroup.rotation.y = time * 0.1;
-      } else if (time >= 15 && time < 25) {
-        // Traversal 1: Zoom to Tangent Plane Point
-        const p = (time - 15) / 10;
-        macroGroup.rotation.y = 0; mesoGroup.rotation.y = 0; // Lock rotation
-        
-        // Offset scene negatively towards the evaluated point
-        const offset = new THREE.Vector3(-tx, -Math.sin(-Math.PI/4)*ty, -1).multiplyScalar(p * 2);
-        macroGroup.position.copy(offset);
-        mesoGroup.position.copy(offset);
-        
-        surfaceMat.opacity = Math.max(0.1, 0.9 - p*0.8);
-        tanPlane.material.opacity = p * 0.7;
-      } else if (time >= 25) {
-        // Traversal 2: Show mathematical gradient vector
-        const p = Math.min(1, (time - 25) / 5);
-        arrowHelper.line.material.opacity = p;
-        arrowHelper.cone.material.opacity = p;
-      }
-    };
-  },
-  geometry: (scene) => {
-    const shapes = [
-      new THREE.Mesh(new THREE.TetrahedronGeometry(0.6), new THREE.MeshPhongMaterial({ color: 0x7C3AED })),
-      new THREE.Mesh(new THREE.OctahedronGeometry(0.5), new THREE.MeshPhongMaterial({ color: 0x06B6D4 })),
-      new THREE.Mesh(new THREE.IcosahedronGeometry(0.5), new THREE.MeshPhongMaterial({ color: 0x10B981 })),
-      new THREE.Mesh(new THREE.DodecahedronGeometry(0.5), new THREE.MeshPhongMaterial({ color: 0xF59E0B })),
-    ];
-    shapes.forEach((s, i) => { s.position.x = (i - 1.5) * 1.5; scene.add(s); });
-    return (time) => { shapes.forEach((s, i) => { s.rotation.x = time * (0.3 + i*0.1); s.rotation.y = time * (0.2 + i*0.15); }); };
-  },
-  // HISTORY
-  pyramid: (scene) => {
-    // ODT Macro: Great Pyramid Exterior
-    const envGroup = new THREE.Group();
-    const pyGeo = new THREE.ConeGeometry(2.5, 3.5, 4);
-    const pyMat = new THREE.MeshPhysicalMaterial({ color: 0xF59E0B, roughness: 0.8, side: THREE.DoubleSide, transparent:true });
-    const pyramid = new THREE.Mesh(pyGeo, pyMat);
-    pyramid.position.y = 1.75;
-    pyramid.rotation.y = Math.PI / 4;
-    envGroup.add(pyramid);
-    
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), new THREE.MeshPhysicalMaterial({ color: 0xD4A574 }));
-    ground.rotation.x = -Math.PI / 2;
-    envGroup.add(ground);
-    scene.add(envGroup);
-
-    // ODT Meso: King's Chamber & Sarcophagus (Inside Pyramid)
-    const mesoGroup = new THREE.Group();
-    mesoGroup.position.y = 1.0; // Deep inside the pyramid
-    const chamberGeo = new THREE.BoxGeometry(0.5, 0.4, 0.5);
-    const chamberMat = new THREE.MeshPhysicalMaterial({ color: 0x222222, side: THREE.BackSide });
-    const chamber = new THREE.Mesh(chamberGeo, chamberMat);
-    mesoGroup.add(chamber);
-    
-    // Sarcophagus
-    const sarco = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.1, 0.3), new THREE.MeshPhysicalMaterial({ color: 0xFCD34D, emissive: 0x442200, transparent: true, opacity: 0 }));
-    sarco.position.y = -0.15;
-    mesoGroup.add(sarco);
-    scene.add(mesoGroup);
-
-    let oZoomOffset = new THREE.Vector3(0, -1.0, 0); // Vector to pull camera into chamber
-    return (time) => {
-      if (time < 15) {
-        envGroup.rotation.y = time * 0.1;
-        mesoGroup.rotation.y = time * 0.1;
-      } else if (time >= 15 && time < 25) {
-        // Traversal: Dissolve Outer Pyramid & Zoom Into Chamber
-        const p = (time - 15) / 10;
-        envGroup.rotation.y = 0; mesoGroup.rotation.y = 0; // Lock rotation
-        
-        pyMat.opacity = 1 - p; // Dissolve pyramid logic
-        ground.material.opacity = 1 - p;
-        ground.material.transparent = true;
-
-        envGroup.position.lerpVectors(new THREE.Vector3(0,0,0), oZoomOffset.clone().multiplyScalar(4), p);
-        envGroup.scale.setScalar(1 + p*3);
-        mesoGroup.position.lerpVectors(new THREE.Vector3(0, 1.0, 0), new THREE.Vector3(0, 0, 0), p);
-        mesoGroup.scale.setScalar(1 + p*5); // Zoom to chamber
-        
-        sarco.material.opacity = p; // Fade in sarcophagus
-      }
-    };
-  },
-  colosseum: (scene) => {
-    // Simplified Colosseum
-    const wallGeo = new THREE.CylinderGeometry(2, 2.2, 2, 32, 1, true);
-    const wallMat = new THREE.MeshPhongMaterial({ color: 0xD4A574, side: THREE.DoubleSide });
-    scene.add(new THREE.Mesh(wallGeo, wallMat));
-    // Arches (columns)
-    for (let i = 0; i < 16; i++) {
-      const a = (i / 16) * Math.PI * 2;
-      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.2), new THREE.MeshPhongMaterial({ color: 0xA08060 }));
-      col.position.set(Math.cos(a) * 2.1, 0, Math.sin(a) * 2.1);
-      scene.add(col);
-    }
-    // Arena floor
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(1.8, 32), new THREE.MeshPhongMaterial({ color: 0xC4A882 }));
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -1;
-    scene.add(floor);
-    return (time) => { scene.rotation.y = time * 0.15; };
-  },
-};
-
-// Create fallback for any lesson not explicitly defined
-function getModelBuilder(lessonId) {
-  return modelBuilders[lessonId] || modelBuilders.atom;
-}
-
-export function renderARLearning(container) {
-  sessionStart = Date.now();
-  const subjects = store.getSubjectProgress();
+  if (!container) return;
+  containerRef = container;
 
   container.innerHTML = `
-    <div class="ar-learning-page">
+    <div class="ar-learning-page" id="ar-learning-root">
+
+      <!-- ════ HERO + TITLE ════ -->
       <div class="ar-hero">
         <div class="ar-hero-content">
-          <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-4);flex-wrap:wrap">
-            <span class="badge badge-primary">WebAR v2.0</span>
-            <span class="badge badge-info">VSCR Engine</span>
-            <span class="badge badge-warning">NSTF Transitions</span>
-            <span class="badge badge-success">PGRF Active</span>
-          </div>
-          <h1>Immersive AR Learning Lab</h1>
-          <p>Research-grade pedagogical engine powered by <strong>4 novel algorithms</strong>. The <strong>VSCR</strong> engine adapts 3D fidelity from your comprehension telemetry. <strong>NSTF</strong> performs sigmoid cross-dissolve transitions. <strong>PGRF</strong> creates attention-responsive spotlighting.</p>
-          <p style="color:var(--text-tertiary);font-size:var(--text-sm);margin-top:var(--space-2)">
-            💡 Select a subject → pick a lesson → click <strong>Next Concept ➔</strong> to progress through the interactive narrative.
-          </p>
-          <div style="display:flex;gap:var(--space-3);margin-top:var(--space-6);flex-wrap:wrap">
-            <button class="btn btn-primary" id="ar-start-camera" disabled>
-              📷 Camera AR (select a lesson first)
-            </button>
-            <button class="btn btn-secondary" id="ar-3d-mode" disabled>
-              🎮 3D Interactive View
-            </button>
-          </div>
+          <h1>🔬 Cognitive AR Visualization</h1>
+          <p>Upload an image or select a concept — our AI identifies it, generates a 3D model, and creates interactive cognitive layers for deep learning.</p>
         </div>
       </div>
 
-      <!-- VSCR Telemetry Dashboard -->
-      <div class="scm-panel" id="vscr-panel">
-        <h3><span style="color:var(--accent-primary)">🔬</span> VSCR — Volumetric Spatial Comprehension Rendering</h3>
-        <p style="font-size:var(--text-xs);color:var(--text-secondary);margin-bottom:var(--space-2)">
-          <code style="background:rgba(124,58,237,0.15);padding:2px 6px;border-radius:4px;font-size:0.7rem">SCS(t) = α·G(t) + β·D(t) + γ·T(t) + δ·R(t)</code>
-        </p>
-        <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-4)">
-          <span style="font-size:var(--text-xs);color:var(--text-tertiary);white-space:nowrap">SCS Score</span>
-          <div style="flex:1;height:8px;background:var(--bg-tertiary);border-radius:var(--radius-full);overflow:hidden">
-            <div id="vscr-gauge-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#7C3AED,#06B6D4);border-radius:var(--radius-full);transition:width 0.5s ease"></div>
-          </div>
-          <span id="vscr-scs" style="font-family:var(--font-mono);font-size:var(--text-sm);font-weight:700;color:var(--accent-primary);min-width:45px">0.000</span>
-        </div>
-        <div class="scm-metrics" style="grid-template-columns:repeat(5, 1fr)">
-          <div class="scm-metric"><div class="scm-metric-value" id="vscr-lod" style="color:#94A3B8">LOD-0</div><div class="scm-metric-label">Render Level</div></div>
-          <div class="scm-metric"><div class="scm-metric-value" id="vscr-gaze">0.00</div><div class="scm-metric-label">Gaze G(t)</div></div>
-          <div class="scm-metric"><div class="scm-metric-value" id="vscr-dwell">0s</div><div class="scm-metric-label">Dwell D(t)</div></div>
-          <div class="scm-metric"><div class="scm-metric-value" id="vscr-interactions">0</div><div class="scm-metric-label">Actions T(t)</div></div>
-          <div class="scm-metric"><div class="scm-metric-value" id="scm-interaction">0s</div><div class="scm-metric-label">Session</div></div>
-        </div>
-        <div class="cognitive-load" style="margin-top:var(--space-4)">
-          <span class="cognitive-load-label">Load</span>
-          <div class="cognitive-load-bar"><div class="cognitive-load-fill low" id="cognitive-fill"></div></div>
-        </div>
-      </div>
+      <!-- ════ MAIN GRID ════ -->
+      <div class="ar-main-grid">
 
-      <!-- 3D Viewer -->
-      <div id="viewer-3d-section" style="display:none; position:relative;">
-        <div class="ar-3d-fallback" id="threejs-container" style="height:550px;border:1px solid rgba(124,58,237,0.2)"></div>
-        <!-- Enhanced SSN Teaching HUD -->
-        <div id="ssn-hud-3d" class="ssn-hud-overlay" style="display:none">
-            <div class="ssn-hud-progress-bar"><div id="ssn-bar-3d" class="ssn-hud-progress-fill"></div></div>
-            <div style="display:flex;justify-content:space-between;align-items:center">
-                <h3 id="ssn-title-3d" style="color:var(--accent-primary);margin:0;font-size:1.1rem;font-family:var(--font-display)">Concept Name</h3>
-                <span id="ssn-progress-3d" style="color:var(--text-tertiary);font-size:0.75rem;font-family:var(--font-mono)">1 / 3</span>
+        <!-- LEFT: Input / Controls -->
+        <div class="ar-sidebar">
+
+          <!-- Image Upload -->
+          <div class="ar-panel" id="ar-upload-panel">
+            <h3><span class="panel-icon">📷</span> Image Input</h3>
+            <div class="ar-upload-zone" id="ar-upload-zone">
+              <div class="upload-icon">📤</div>
+              <p>Drop image here or <span class="upload-link">browse</span></p>
+              <span class="upload-hint">JPG, PNG — any photo of a concept</span>
+              <input type="file" id="ar-file-input" accept="image/*" hidden />
             </div>
-            <p id="ssn-text-3d" style="color:var(--text-secondary);font-size:0.85rem;line-height:1.6;margin:0;min-height:3rem">Narrative explanation goes here...</p>
-            <div style="display:flex;gap:var(--space-2);justify-content:space-between;margin-top:var(--space-2)">
-                <button class="btn btn-ghost btn-sm" id="ssn-prev-3d" style="border:1px solid rgba(255,255,255,0.1)">⬅ Previous</button>
-                <button class="btn btn-primary btn-sm" id="ssn-next-3d" style="flex:1;font-weight:600">Next Concept ➔</button>
+            <div id="ar-image-preview" class="ar-image-preview" style="display:none;">
+              <img id="ar-preview-img" src="" alt="Preview" />
+              <button class="btn-clear-image" id="ar-clear-image">✕</button>
             </div>
-        </div>
-        <div style="display:flex;gap:var(--space-3);margin-top:var(--space-4);justify-content:center;flex-wrap:wrap">
-          <button class="btn btn-secondary btn-sm" id="three-zoom-in">+ Zoom In</button>
-          <button class="btn btn-secondary btn-sm" id="three-zoom-out">− Zoom Out</button>
-          <button class="btn btn-primary btn-sm" id="three-take-quiz">📝 Take Quiz</button>
-          <button class="btn btn-ghost btn-sm" id="three-close" style="color:var(--accent-error)">✕ Close</button>
-        </div>
-      </div>
+          </div>
 
-      <!-- Camera AR Viewer -->
-      <div class="ar-viewer-container" id="ar-viewer-section">
-        <div class="ar-viewer" id="ar-viewer" style="height:550px">
-          <video id="ar-video" class="ar-video-feed" autoplay playsinline></video>
-          <div id="ar-three-overlay" style="position:absolute;inset:0;pointer-events:none"></div>
-          <!-- SSN Teaching HUD for AR -->
-          <div id="ssn-hud-ar" class="ssn-hud-overlay" style="display:none">
-              <div class="ssn-hud-progress-bar"><div id="ssn-bar-ar" class="ssn-hud-progress-fill"></div></div>
-              <div style="display:flex;justify-content:space-between;align-items:center">
-                  <h3 id="ssn-title-ar" style="color:var(--accent-primary);margin:0;font-size:1.1rem;font-family:var(--font-display)">Concept Name</h3>
-                  <span id="ssn-progress-ar" style="color:var(--text-tertiary);font-size:0.75rem;font-family:var(--font-mono)">1 / 3</span>
+          <!-- OR: Direct Concept Selector -->
+          <div class="ar-panel" id="ar-concept-gallery">
+            <h3><span class="panel-icon">🧠</span> Quick Concepts</h3>
+            <div class="concept-chips" id="concept-chips">
+              <!-- Filled dynamically -->
+            </div>
+          </div>
+
+          <!-- Learner Level -->
+          <div class="ar-panel" id="ar-level-panel">
+            <h3><span class="panel-icon">🎓</span> Learner Level</h3>
+            <div class="level-selector" id="level-selector">
+              <button data-level="BEGINNER" class="level-btn">Beginner</button>
+              <button data-level="INTERMEDIATE" class="level-btn active">Intermediate</button>
+              <button data-level="ADVANCED" class="level-btn">Advanced</button>
+              <button data-level="EXPERT" class="level-btn">Expert</button>
+            </div>
+          </div>
+
+          <!-- Cognitive Layer Controls -->
+          <div class="ar-panel" id="ar-layers-panel" style="display:none;">
+            <h3><span class="panel-icon">🧩</span> Cognitive Layers</h3>
+            <div class="layer-toggles" id="layer-toggles">
+              <!-- Filled dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- CENTER: 3D Viewport + Pipeline -->
+        <div class="ar-viewport-area">
+
+          <!-- Pipeline Progress -->
+          <div class="pipeline-stepper" id="pipeline-stepper" style="display:none;">
+            <div class="pipeline-step" data-step="clip"><span class="step-dot"></span> CLIP Analysis</div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" data-step="concept"><span class="step-dot"></span> Concept Map</div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" data-step="model"><span class="step-dot"></span> 3D Model</div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" data-step="layers"><span class="step-dot"></span> Cognitive</div>
+            <div class="pipeline-connector"></div>
+            <div class="pipeline-step" data-step="render"><span class="step-dot"></span> Render</div>
+          </div>
+
+          <!-- 3D Viewport -->
+          <div class="ar-3d-viewport" id="ar-3d-viewport">
+            <div class="viewport-placeholder" id="viewport-placeholder">
+              <div class="placeholder-icon">🎯</div>
+              <h3>Upload an image or select a concept to begin</h3>
+              <p>The AI pipeline will identify the concept and generate an interactive 3D cognitive visualization</p>
+              <div class="placeholder-features">
+                <span>🔍 CLIP Vision AI</span>
+                <span>🧊 Procedural 3D</span>
+                <span>🧠 5 Cognitive Layers</span>
+                <span>💡 PBR Lighting</span>
               </div>
-              <p id="ssn-text-ar" style="color:var(--text-secondary);font-size:0.85rem;line-height:1.6;margin:0;min-height:3rem">Narrative explanation goes here...</p>
-              <div style="display:flex;gap:var(--space-2);justify-content:space-between;margin-top:var(--space-2)">
-                  <button class="btn btn-ghost btn-sm" id="ssn-prev-ar" style="pointer-events:auto;border:1px solid rgba(255,255,255,0.1)">⬅ Previous</button>
-                  <button class="btn btn-primary btn-sm" id="ssn-next-ar" style="flex:1;pointer-events:auto;font-weight:600">Next Concept ➔</button>
+            </div>
+            <!-- Three.js canvas injected here -->
+          </div>
+
+          <!-- Concept Info Panel -->
+          <div class="concept-info-panel" id="concept-info-panel" style="display:none;">
+            <div class="concept-info-header">
+              <div class="concept-badge" id="concept-badge">—</div>
+              <div class="concept-details">
+                <h3 id="concept-name">—</h3>
+                <span class="concept-domain" id="concept-domain">—</span>
+                <span class="concept-confidence" id="concept-confidence">—</span>
               </div>
+            </div>
+            <p class="concept-description" id="concept-description">—</p>
+            <div class="concept-components" id="concept-components"></div>
           </div>
-          <div class="ar-info-panel" id="ar-info-panel">
-            <div class="ar-info-title" id="ar-info-title">AR Mode</div>
-            <div class="ar-info-desc" id="ar-info-desc">Kalman-filtered gyroscopic tracking active</div>
+        </div>
+
+        <!-- RIGHT: Stats -->
+        <div class="ar-stats-panel">
+          <div class="ar-panel">
+            <h3><span class="panel-icon">📊</span> System Stats</h3>
+            <div class="stats-grid" id="stats-grid">
+              <div class="stat-item">
+                <span class="stat-value" id="stat-images">0</span>
+                <span class="stat-label">Images Analyzed</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-value" id="stat-concepts">0</span>
+                <span class="stat-label">Concepts Found</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-value" id="stat-models">0</span>
+                <span class="stat-label">3D Models</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-value" id="stat-time">0ms</span>
+                <span class="stat-label">Avg. Time</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-value" id="stat-clip">—</span>
+                <span class="stat-label">CLIP Status</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-value" id="stat-available">0</span>
+                <span class="stat-label">Concepts DB</span>
+              </div>
+            </div>
           </div>
-          <div class="ar-controls">
-            <button class="btn btn-ghost btn-sm" id="ar-close" style="color:var(--accent-error)">✕ Close AR</button>
+
+          <!-- Init Progress -->
+          <div class="ar-panel" id="init-progress-panel">
+            <h3><span class="panel-icon">⚡</span> Pipeline Init</h3>
+            <div class="init-progress">
+              <div class="init-bar"><div class="init-fill" id="init-fill" style="width:0%"></div></div>
+              <span class="init-label" id="init-label">Starting...</span>
+            </div>
           </div>
         </div>
       </div>
+    </div>
+  `;
 
-      <!-- Subjects -->
-      <div>
-        <div class="section-header">
-          <div class="section-title">Choose a Subject</div>
-          <div class="section-subtitle">Select a lesson to begin an interactive SSN narrative with NSTF transitions.</div>
-        </div>
-        <div class="ar-subjects-grid stagger-children" id="subjects-grid">
-          ${subjects.map(s => renderSubjectCard(s)).join('')}
-        </div>
-      </div>
-      <!-- Quiz Modal -->
-      <div id="quiz-modal" style="display:none"></div>
-    </div>`;
-
-  setupAREvents(container);
-  startSCMSimulation();
-  setTimeout(() => staggerAnimation(container, '#subjects-grid > *', 60), 100);
+  // ── Wire up event listeners ──
+  _setupUploadZone();
+  _setupLevelSelector();
+  _populateConceptChips();
+  _initThreeScene();
+  _initARSystem();
 }
 
-function renderSubjectCard(subject) {
-  const avgMastery = Math.round(subject.lessons.reduce((s, l) => s + l.mastery, 0) / subject.lessons.length);
-  return `
-    <div class="ar-subject-card" data-subject="${subject.id}">
-      <div class="ar-subject-icon ${subject.id}">${subject.icon}</div>
-      <div class="ar-subject-name">${subject.name}</div>
-      <div class="ar-subject-desc">${subject.description}</div>
-      <div style="margin-top:var(--space-3)">
-        <div style="font-size:var(--text-xs);font-weight:600;color:var(--text-secondary);margin-bottom:var(--space-2)">Lessons:</div>
-        ${subject.lessons.map(l => `
-          <button class="btn btn-ghost btn-sm lesson-btn" data-subject="${subject.id}" data-lesson="${l.id}" style="width:100%;justify-content:space-between;margin-bottom:var(--space-1);font-size:var(--text-xs)">
-            <span>${l.type === 'AR' ? '📷' : '🎮'} ${l.name}</span>
-            <span style="color:${l.mastery > 70 ? 'var(--accent-success)' : l.mastery > 0 ? 'var(--accent-warning)' : 'var(--text-muted)'}">${l.mastery}%</span>
-          </button>
-        `).join('')}
-      </div>
-      <div class="progress-bar" style="margin-top:var(--space-3)">
-        <div class="progress-bar-fill" style="width:${avgMastery}%"></div>
-      </div>
-      <div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-top:var(--space-2)">${avgMastery}% Complete</div>
-    </div>`;
+// ============================================================
+//  THREE.JS SCENE SETUP
+// ============================================================
+
+function _initThreeScene() {
+  const viewport = document.getElementById('ar-3d-viewport');
+  if (!viewport) return;
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0a14);
+
+  camera = new THREE.PerspectiveCamera(55, viewport.clientWidth / viewport.clientHeight, 0.01, 100);
+  camera.position.set(0, 0.5, 2.5);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+  renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.domElement.style.borderRadius = 'var(--radius-xl)';
+  renderer.domElement.style.display = 'none'; // Hidden until model loaded
+  viewport.appendChild(renderer.domElement);
+
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 1.0;
+  controls.minDistance = 0.5;
+  controls.maxDistance = 8;
+  controls.target.set(0, 0.2, 0);
+
+  // Basic lighting before realism engine
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+  scene.add(ambientLight);
+  const dirLight = new THREE.DirectionalLight(0xfff5e0, 1.0);
+  dirLight.position.set(5, 10, 5);
+  scene.add(dirLight);
+
+  // Grid helper
+  const grid = new THREE.GridHelper(4, 20, 0x222233, 0x111122);
+  grid.material.opacity = 0.3;
+  grid.material.transparent = true;
+  scene.add(grid);
+
+  // Resize handler
+  const resizeObserver = new ResizeObserver(() => {
+    const w = viewport.clientWidth;
+    const h = viewport.clientHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  });
+  resizeObserver.observe(viewport);
+
+  _startRenderLoop();
 }
 
-function setupAREvents(container) {
-  // Lesson selection
-  container.querySelectorAll('.lesson-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const subjectId = btn.dataset.subject;
-      const lessonId = btn.dataset.lesson;
-      const subjects = store.getSubjectProgress();
-      currentSubject = subjects.find(s => s.id === subjectId);
-      currentLesson = currentSubject?.lessons.find(l => l.id === lessonId);
-      if (currentLesson) {
-        showToast(`Loaded: ${currentSubject.name} → ${currentLesson.name}`, 'success');
-        // Enable buttons
-        const camBtn = document.getElementById('ar-start-camera');
-        const viewBtn = document.getElementById('ar-3d-mode');
-        if (camBtn) { camBtn.disabled = false; camBtn.textContent = `📷 Camera AR: ${currentLesson.name}`; }
-        if (viewBtn) { viewBtn.disabled = false; viewBtn.textContent = `🎮 3D View: ${currentLesson.name}`; }
-        // Auto-open 3D
-        start3DViewer();
-      }
-    });
-  });
+function _startRenderLoop() {
+  function animate() {
+    animationFrameId = requestAnimationFrame(animate);
+    const delta = clock ? clock.getDelta() : 0.016;
 
-  container.querySelector('#ar-start-camera')?.addEventListener('click', startCameraAR);
-  container.querySelector('#ar-close')?.addEventListener('click', stopCameraAR);
-  container.querySelector('#ar-3d-mode')?.addEventListener('click', start3DViewer);
-  container.querySelector('#three-close')?.addEventListener('click', close3DViewer);
-  container.querySelector('#three-zoom-in')?.addEventListener('click', () => { if (threeCamera) threeCamera.position.z -= 0.5; });
-  container.querySelector('#three-zoom-out')?.addEventListener('click', () => { if (threeCamera) threeCamera.position.z += 0.5; });
-  container.querySelector('#three-take-quiz')?.addEventListener('click', showQuiz);
-  
-  // Bind SSN Prev/Next buttons
-  bindSsnControls();
-}
+    if (controls) controls.update();
 
-function start3DViewer() {
-  if (!currentLesson) { showToast('Select a lesson first', 'warning'); return; }
-  document.getElementById('viewer-3d-section').style.display = 'block';
-  document.getElementById('ar-viewer-section')?.classList.remove('active');
-
-  const container = document.getElementById('threejs-container');
-  container.innerHTML = '';
-
-  // Three.js setup — Enhanced
-  threeScene = new THREE.Scene();
-  threeCamera = new THREE.PerspectiveCamera(55, container.offsetWidth / container.offsetHeight, 0.1, 200);
-  threeCamera.position.set(0, 0.5, 3.5);
-  threeCamera.lookAt(0, 0, 0);
-
-  threeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-  threeRenderer.setSize(container.offsetWidth, container.offsetHeight);
-  threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  threeRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-  threeRenderer.toneMappingExposure = 1.2;
-  threeRenderer.outputColorSpace = THREE.SRGBColorSpace;
-  container.appendChild(threeRenderer.domElement);
-
-  // Enhanced Lighting Rig
-  threeScene.add(new THREE.AmbientLight(0x404060, 1.5));
-  const dirLight = new THREE.DirectionalLight(0xffffff, 2);
-  dirLight.position.set(5, 8, 5);
-  dirLight.castShadow = true;
-  threeScene.add(dirLight);
-  const pointLight1 = new THREE.PointLight(0x7C3AED, 2, 25);
-  pointLight1.position.set(-4, 4, 3);
-  threeScene.add(pointLight1);
-  const pointLight2 = new THREE.PointLight(0x06B6D4, 1.5, 25);
-  pointLight2.position.set(4, -2, -3);
-  threeScene.add(pointLight2);
-  // Rim light for depth
-  const rimLight = new THREE.PointLight(0xF59E0B, 0.8, 15);
-  rimLight.position.set(0, -3, 5);
-  threeScene.add(rimLight);
-
-  // Create immersive environment (sky dome + grid + ambient particles)
-  const ambientParticles = createEnvironment(threeScene);
-
-  // Build model via SSN engine
-  const builder = getModelBuilder(currentLesson.id);
-  const animate = initSsn(threeScene, builder, '3d');
-
-  // VSCR + PGRF mouse tracking
-  let isDragging = false, prevX = 0, prevY = 0, rotX = 0, rotY = 0;
-  threeRenderer.domElement.addEventListener('mousedown', (e) => {
-    isDragging = true; prevX = e.clientX; prevY = e.clientY;
-    VSCR.trackInteraction();
-  });
-  threeRenderer.domElement.addEventListener('mousemove', (e) => {
-    VSCR.trackMouse(e.clientX, e.clientY);
-    PGRF.trackCursor(e.offsetX * window.devicePixelRatio, e.offsetY * window.devicePixelRatio);
-    if (!isDragging) return;
-    rotY += (e.clientX - prevX) * 0.005;
-    rotX += (e.clientY - prevY) * 0.005;
-    prevX = e.clientX; prevY = e.clientY;
-    VSCR.trackInteraction();
-  });
-  threeRenderer.domElement.addEventListener('mouseup', () => isDragging = false);
-  threeRenderer.domElement.addEventListener('wheel', (e) => {
-    threeCamera.position.z += e.deltaY * 0.005;
-    VSCR.trackInteraction();
-  });
-  // Touch events for mobile
-  threeRenderer.domElement.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1) {
-      isDragging = true; prevX = e.touches[0].clientX; prevY = e.touches[0].clientY;
-    }
-    VSCR.trackInteraction();
-  });
-  threeRenderer.domElement.addEventListener('touchmove', (e) => {
-    VSCR.trackMouse(e.touches[0].clientX, e.touches[0].clientY);
-    if (!isDragging || e.touches.length !== 1) return;
-    rotY += (e.touches[0].clientX - prevX) * 0.005;
-    rotX += (e.touches[0].clientY - prevY) * 0.005;
-    prevX = e.touches[0].clientX; prevY = e.touches[0].clientY;
-  });
-  threeRenderer.domElement.addEventListener('touchend', () => isDragging = false);
-
-  store.logSession('ar_learning', 1);
-
-  const clock = new THREE.Clock();
-  let cameraDistance = 5;
-
-  function renderLoop() {
-    animationId = requestAnimationFrame(renderLoop);
-    const t = clock.getElapsedTime();
-    if (animate) animate(t);
-
-    // Animate environment particles
-    if (ambientParticles) {
-      const positions = ambientParticles.geometry.attributes.position.array;
-      for (let i = 0; i < positions.length; i += 3) {
-        positions[i + 1] += Math.sin(t + positions[i]) * 0.001;
-      }
-      ambientParticles.geometry.attributes.position.needsUpdate = true;
+    // Animate model
+    if (currentModel) {
+      _animateModel(currentModel, delta);
     }
 
-    // Pulsing emissive lights
-    pointLight1.intensity = 2 + Math.sin(t * 2) * 0.5;
-    pointLight2.intensity = 1.5 + Math.cos(t * 1.5) * 0.3;
-
-    // Camera orbit
-    cameraDistance = Math.max(2, Math.min(15, threeCamera.position.length()));
-    threeCamera.position.x = Math.sin(rotY) * cameraDistance;
-    threeCamera.position.z = Math.cos(rotY) * cameraDistance;
-    threeCamera.position.y = 1 + rotX * 2;
-    threeCamera.lookAt(0, 0, 0);
-    threeRenderer.render(threeScene, threeCamera);
+    if (renderer && scene && camera) {
+      renderer.render(scene, camera);
+    }
   }
-  renderLoop();
-  showToast(`🔬 ${currentLesson.name} — VSCR + PGRF active. Interact to increase detail.`, 'info');
+  animate();
 }
 
-function close3DViewer() {
-  if (animationId) cancelAnimationFrame(animationId);
-  document.getElementById('viewer-3d-section').style.display = 'none';
-  const container = document.getElementById('threejs-container');
-  if (container) container.innerHTML = '';
-  if (threeRenderer) threeRenderer.dispose();
-  // Hide VSCR panel
-  const vscrPanel = document.getElementById('vscr-panel');
-  if (vscrPanel) vscrPanel.style.display = 'none';
-}
+function _animateModel(model, delta) {
+  if (!model || !model.userData.animationData) return;
+  const anim = model.userData.animationData;
+  const time = clock ? clock.elapsedTime : 0;
 
-async function startCameraAR() {
-  if (!currentLesson) { showToast('Select a lesson first', 'warning'); return; }
-  try {
-    const video = document.getElementById('ar-video');
-    const section = document.getElementById('ar-viewer-section');
-    arStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } });
-    video.srcObject = arStream;
-    section.classList.add('active');
-    document.getElementById('viewer-3d-section').style.display = 'none';
-
-    const overlay = document.getElementById('ar-three-overlay');
-    overlay.innerHTML = '';
-    const arScene = new THREE.Scene();
-    const arCamera = new THREE.PerspectiveCamera(60, overlay.offsetWidth / overlay.offsetHeight, 0.1, 100);
-    arCamera.position.set(0, 1, 4);
-    
-    // Kalman-Filtered Gyroscopic AR Tracking
-    const kalmanAlpha = new KalmanFilter1D(0.001, 0.05);
-    const kalmanBeta = new KalmanFilter1D(0.001, 0.05);
-    const kalmanGamma = new KalmanFilter1D(0.001, 0.05);
-    let deviceQuat = new THREE.Quaternion();
-    
-    const onDeviceOrientation = (event) => {
-        if (!event.alpha && !event.beta && !event.gamma) return;
-        const alpha = kalmanAlpha.update(THREE.MathUtils.degToRad(event.alpha || 0));
-        const beta = kalmanBeta.update(THREE.MathUtils.degToRad(event.beta || 0));
-        const gamma = kalmanGamma.update(THREE.MathUtils.degToRad(event.gamma || 0));
-        const euler = new THREE.Euler(beta, alpha, -gamma, 'YXZ');
-        deviceQuat.setFromEuler(euler);
-    };
-    if (window.DeviceOrientationEvent) {
-        window.addEventListener('deviceorientation', onDeviceOrientation);
+  switch (anim.type) {
+    case 'pulse': {
+      const scale = 1 + Math.sin(time * anim.rate * Math.PI * 2) * anim.amplitude;
+      model.scale.setScalar(scale);
+      break;
     }
-
-    const arRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-    arRenderer.setSize(overlay.offsetWidth, overlay.offsetHeight);
-    arRenderer.setClearColor(0x000000, 0);
-    arRenderer.toneMapping = THREE.ACESFilmicToneMapping;
-    overlay.appendChild(arRenderer.domElement);
-    
-    arScene.add(new THREE.AmbientLight(0xffffff, 2.5));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 2);
-    dirLight.position.set(5, 5, 5);
-    arScene.add(dirLight);
-    // Edge-glow rim light for AR visibility
-    const rimLight = new THREE.PointLight(0x7C3AED, 3, 15);
-    rimLight.position.set(0, 2, -3);
-    arScene.add(rimLight);
-
-    const builder = getModelBuilder(currentLesson.id);
-    const animate = initSsn(arScene, builder, 'ar');
-
-    const clock = new THREE.Clock();
-    const infoTitle = document.getElementById('ar-info-title');
-    if (infoTitle) infoTitle.textContent = `AR: ${currentLesson.name}`;
-    
-    function arLoop() {
-      if (!arStream) return;
-      requestAnimationFrame(arLoop);
-      const t = clock.getElapsedTime();
-      if (animate) animate(t);
-      
-      // Apply Kalman-filtered gyro rotation (smoother than raw slerp)
-      arCamera.quaternion.slerp(deviceQuat, 0.3);
-      rimLight.intensity = 3 + Math.sin(t * 3) * 0.5;
-      arRenderer.render(arScene, arCamera);
+    case 'rotate': {
+      const speed = anim.rate * delta * Math.PI;
+      if (anim.groups) {
+        model.traverse(child => {
+          if (anim.groups.includes(child.name)) {
+            child.rotation[anim.axis || 'y'] += speed;
+          }
+        });
+      } else {
+        model.rotation[anim.axis || 'y'] += speed;
+      }
+      break;
     }
-    arLoop();
-    
-    store.logSession('ar_learning', 1);
-    showToast('📷 Kalman-filtered AR active! Smooth gyroscopic tracking enabled.', 'success');
-  } catch (err) {
-    showToast('Camera access denied. Use 3D Interactive View instead.', 'warning');
-  }
-}
-
-function stopCameraAR() {
-  if (arStream) { arStream.getTracks().forEach(t => t.stop()); arStream = null; }
-  document.getElementById('ar-viewer-section')?.classList.remove('active');
-  const overlay = document.getElementById('ar-three-overlay');
-  if (overlay) overlay.innerHTML = '';
-}
-
-// Quiz system
-function showQuiz() {
-  if (!currentLesson || !currentSubject) { showToast('Select a lesson first', 'warning'); return; }
-  const quizzes = getQuizForLesson(currentSubject.id, currentLesson.id);
-  let currentQ = 0, score = 0;
-
-  const modal = document.getElementById('quiz-modal');
-  function renderQuestion() {
-    if (currentQ >= quizzes.length) {
-      const pct = Math.round((score / quizzes.length) * 100);
-      store.recordQuizScore(currentSubject.id, currentLesson.id, score, quizzes.length);
-      store.updateSubjectProgress(currentSubject.id, currentLesson.id, pct);
-      modal.innerHTML = `
-        <div class="modal-overlay">
-          <div class="modal">
-            <h3 style="font-family:var(--font-display);font-weight:700">Quiz Complete!</h3>
-            <p style="margin:var(--space-4) 0">Score: <strong>${score}/${quizzes.length}</strong> (${pct}%)</p>
-            <div class="progress-bar" style="margin-bottom:var(--space-4)"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
-            <button class="btn btn-primary" onclick="document.getElementById('quiz-modal').style.display='none';document.getElementById('quiz-modal').innerHTML=''">Close</button>
-          </div>
-        </div>`;
-      showToast(`Quiz: ${score}/${quizzes.length} — Mastery updated to ${pct}%`, score >= quizzes.length / 2 ? 'success' : 'warning');
-      return;
+    case 'float': {
+      model.position.y = 0.2 + Math.sin(time * anim.rate * Math.PI * 2) * anim.amplitude;
+      break;
     }
-    const q = quizzes[currentQ];
-    modal.innerHTML = `
-      <div class="modal-overlay">
-        <div class="modal">
-          <div style="font-size:var(--text-xs);color:var(--text-tertiary);margin-bottom:var(--space-2)">Question ${currentQ + 1}/${quizzes.length}</div>
-          <h3 style="font-family:var(--font-display);font-weight:600;margin-bottom:var(--space-4)">${q.question}</h3>
-          <div style="display:flex;flex-direction:column;gap:var(--space-2)">
-            ${q.options.map((opt, i) => `<button class="btn btn-secondary quiz-opt" data-idx="${i}" style="text-align:left">${opt}</button>`).join('')}
-          </div>
-        </div>
-      </div>`;
-    modal.querySelectorAll('.quiz-opt').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (parseInt(btn.dataset.idx) === q.answer) { score++; showToast('✅ Correct!', 'success'); }
-        else showToast(`❌ Correct answer: ${q.options[q.answer]}`, 'error');
-        currentQ++;
-        setTimeout(renderQuestion, 800);
+    case 'breathe': {
+      const breathe = 1 + Math.sin(time * anim.rate * Math.PI * 2) * anim.amplitude;
+      model.scale.set(breathe, 1, breathe);
+      break;
+    }
+    case 'sway': {
+      model.rotation.z = Math.sin(time * anim.rate * Math.PI * 2) * anim.amplitude;
+      break;
+    }
+    case 'orbit': {
+      model.traverse(child => {
+        if (child.userData.orbitRadius) {
+          const angle = (child.userData.orbitAngle || 0) + time * (child.userData.orbitSpeed || 0.5);
+          const r = child.userData.orbitRadius;
+          const tiltX = child.userData.orbitTiltX || 0;
+          const tiltY = child.userData.orbitTiltY || 0;
+          child.position.x = Math.cos(angle) * r;
+          child.position.y = Math.sin(angle) * r * Math.cos(tiltX);
+          child.position.z = Math.sin(angle) * r * Math.sin(tiltX);
+        }
       });
+      break;
+    }
+    case 'pendulum': {
+      model.traverse(child => {
+        if (child.name === 'function_pendulum') {
+          child.rotation.z = Math.sin(time * anim.rate * Math.PI * 2) * (anim.amplitude || 0.5);
+        }
+      });
+      break;
+    }
+    case 'reciprocate': {
+      if (anim.groups) {
+        model.traverse(child => {
+          if (anim.groups.includes(child.name)) {
+            child.position[anim.axis || 'y'] = Math.sin(time * anim.rate * Math.PI * 2) * (anim.amplitude || 0.2);
+          }
+        });
+      }
+      break;
+    }
+    case 'spring': {
+      const springScale = 1 + Math.sin(time * anim.rate * Math.PI * 2) * (anim.amplitude || 0.1);
+      model.scale[anim.axis || 'y'] = springScale;
+      break;
+    }
+    case 'vibrate': {
+      model.position.x = Math.sin(time * 20) * (anim.amplitude || 0.005);
+      model.position.y = Math.cos(time * 25) * (anim.amplitude || 0.005) + 0.2;
+      break;
+    }
+    case 'wiggle': {
+      model.rotation.z = Math.sin(time * anim.rate * Math.PI * 4) * (anim.amplitude || 0.05);
+      model.position.x = Math.sin(time * anim.rate * Math.PI * 2) * 0.1;
+      break;
+    }
+    case 'glow': {
+      if (anim.groups) {
+        model.traverse(child => {
+          if (child.material && child.material.emissiveIntensity !== undefined) {
+            child.material.emissiveIntensity = 0.3 + Math.sin(time * anim.rate * Math.PI * 2) * 0.5;
+          }
+        });
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+// ============================================================
+//  AR SYSTEM INIT
+// ============================================================
+
+async function _initARSystem() {
+  if (!arSystem) {
+    arSystem = new SemanticCognitiveARSystem();
+  }
+
+  const initLabel = document.getElementById('init-label');
+  const initFill = document.getElementById('init-fill');
+
+  const ok = await arSystem.initialize(scene, camera, renderer, (stage, progress) => {
+    if (initLabel) initLabel.textContent = stage;
+    if (initFill) initFill.style.width = `${Math.max(0, progress * 100).toFixed(0)}%`;
+  });
+
+  if (ok) {
+    isInitialized = true;
+    const initPanel = document.getElementById('init-progress-panel');
+    if (initPanel) {
+      initPanel.querySelector('.init-label').textContent = '✓ Ready';
+      initPanel.querySelector('.init-fill').style.width = '100%';
+      initPanel.querySelector('.init-fill').style.background = 'var(--accent-success, #10B981)';
+    }
+    _updateStats();
+  }
+}
+
+// ============================================================
+//  UPLOAD ZONE
+// ============================================================
+
+function _setupUploadZone() {
+  const zone = document.getElementById('ar-upload-zone');
+  const fileInput = document.getElementById('ar-file-input');
+  const clearBtn = document.getElementById('ar-clear-image');
+
+  if (!zone || !fileInput) return;
+
+  zone.addEventListener('click', () => fileInput.click());
+
+  zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) _handleImageFile(file);
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files[0]) _handleImageFile(e.target.files[0]);
+  });
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      _clearImage();
     });
   }
-  modal.style.display = 'block';
-  renderQuestion();
 }
 
-function getQuizForLesson(subjectId, lessonId) {
-  const quizBank = {
-    physics: {
-      newton: [
-        { question: "What is Newton's First Law of Motion?", options: ['Law of Inertia', 'F = ma', 'Action-Reaction', 'Law of Gravity'], answer: 0 },
-        { question: 'What unit measures force?', options: ['Joule', 'Watt', 'Newton', 'Pascal'], answer: 2 },
-        { question: 'A body at rest stays at rest unless acted upon by?', options: ['Gravity only', 'An external force', 'Friction', 'Momentum'], answer: 1 },
-      ],
-      atom: [
-        { question: 'Who proposed the planetary model of the atom?', options: ['Thomson', 'Rutherford', 'Bohr', 'Dalton'], answer: 2 },
-        { question: 'Electrons orbit the nucleus in?', options: ['Random paths', 'Fixed energy levels', 'Straight lines', 'Spirals'], answer: 1 },
-        { question: 'What charge does a proton carry?', options: ['Negative', 'Neutral', 'Positive', 'Variable'], answer: 2 },
-      ],
-      optics: [
-        { question: 'A convex lens converges light to the?', options: ['Center', 'Focus', 'Edge', 'Vertex'], answer: 1 },
-        { question: 'The angle of incidence equals?', options: ['Angle of refraction', 'Angle of reflection', 'Critical angle', 'Zero'], answer: 1 },
-      ],
-      waves: [
-        { question: 'What is the SI unit of frequency?', options: ['Meter', 'Hertz', 'Second', 'Decibel'], answer: 1 },
-        { question: 'Sound waves are?', options: ['Transverse', 'Longitudinal', 'Electromagnetic', 'Surface'], answer: 1 },
-      ]
-    },
-    chemistry: {
-      bonds: [{ question: 'Ionic bonds form between?', options: ['Two metals', 'Metal and nonmetal', 'Two nonmetals', 'Noble gases'], answer: 1 },
-        { question: 'Covalent bonds involve?', options: ['Transfer of electrons', 'Sharing of electrons', 'Nuclear fusion', 'Magnetic attraction'], answer: 1 }],
-      water: [{ question: 'The bond angle in water is approximately?', options: ['90°', '104.5°', '120°', '180°'], answer: 1 },
-        { question: 'Water is a?', options: ['Nonpolar molecule', 'Polar molecule', 'Ionic compound', 'Metal'], answer: 1 }],
-    },
-    biology: {
-      cell: [{ question: 'The powerhouse of the cell is?', options: ['Nucleus', 'Ribosome', 'Mitochondria', 'Golgi'], answer: 2 },
-        { question: 'Cell membrane is made of?', options: ['Carbohydrates', 'Phospholipid bilayer', 'Protein only', 'DNA'], answer: 1 }],
-      dna: [{ question: 'DNA stands for?', options: ['Deoxyribonucleic Acid', 'Dinitrogen Acid', 'Dynamic Nuclear Acid', 'None'], answer: 0 },
-        { question: 'DNA double helix was discovered by?', options: ['Mendel', 'Watson & Crick', 'Darwin', 'Pasteur'], answer: 1 }],
-    },
-    engineering: {
-      gears: [{ question: 'Meshing gears rotate in?', options: ['Same direction', 'Opposite directions', 'Random', 'They do not rotate'], answer: 1 },
-        { question: 'Gear ratio determines?', options: ['Color', 'Speed and torque', 'Material', 'Temperature'], answer: 1 }],
-      bridges: [{ question: 'A truss bridge uses?', options: ['Cables', 'Triangular units', 'Arches only', 'Cantilevers'], answer: 1 }],
-    },
-    math: {
-      calculus: [{ question: 'The derivative of x² is?', options: ['x', '2x', 'x³', '2'], answer: 1 },
-        { question: 'Integration is the reverse of?', options: ['Multiplication', 'Differentiation', 'Addition', 'Subtraction'], answer: 1 }],
-      geometry: [{ question: 'A tetrahedron has how many faces?', options: ['3', '4', '5', '6'], answer: 1 }],
-    },
-    history: {
-      pyramid: [{ question: 'The Great Pyramid is in?', options: ['Rome', 'Athens', 'Giza', 'Istanbul'], answer: 2 }],
-      colosseum: [{ question: 'The Colosseum is in?', options: ['Greece', 'Egypt', 'Rome', 'France'], answer: 2 }],
-    },
+function _handleImageFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const dataUrl = e.target.result;
+    // Show preview
+    const previewContainer = document.getElementById('ar-image-preview');
+    const previewImg = document.getElementById('ar-preview-img');
+    const uploadZone = document.getElementById('ar-upload-zone');
+    if (previewContainer && previewImg && uploadZone) {
+      previewImg.src = dataUrl;
+      previewContainer.style.display = 'block';
+      uploadZone.style.display = 'none';
+    }
+    // Run pipeline
+    _processImage(dataUrl);
   };
-  return quizBank[subjectId]?.[lessonId] || [{ question: 'What is this lesson about?', options: ['Learning', 'Testing', 'Playing', 'Sleeping'], answer: 0 }];
+  reader.readAsDataURL(file);
 }
 
-// SCM simulation
-function startSCMSimulation() {
-  if (scmInterval) clearInterval(scmInterval);
-  scmState = { interactionTime: 0, complexityLevel: 1, cognitiveLoad: 'low' };
-  scmInterval = setInterval(() => {
-    scmState.interactionTime++;
-    if (scmState.interactionTime > 30) { scmState.complexityLevel = 2; scmState.cognitiveLoad = 'medium'; }
-    if (scmState.interactionTime > 90) { scmState.complexityLevel = 3; scmState.cognitiveLoad = 'high'; }
-    const el = id => document.getElementById(id);
-    if (el('scm-interaction')) el('scm-interaction').textContent = `${scmState.interactionTime}s`;
-    if (el('scm-complexity')) el('scm-complexity').textContent = `Level ${scmState.complexityLevel}`;
-    if (el('scm-load')) el('scm-load').textContent = scmState.cognitiveLoad.charAt(0).toUpperCase() + scmState.cognitiveLoad.slice(1);
-    if (el('cognitive-fill')) el('cognitive-fill').className = `cognitive-load-fill ${scmState.cognitiveLoad}`;
-  }, 1000);
+function _clearImage() {
+  const previewContainer = document.getElementById('ar-image-preview');
+  const uploadZone = document.getElementById('ar-upload-zone');
+  if (previewContainer) previewContainer.style.display = 'none';
+  if (uploadZone) uploadZone.style.display = '';
+  document.getElementById('ar-file-input').value = '';
 }
+
+// ============================================================
+//  CONCEPT GALLERY CHIPS
+// ============================================================
+
+function _populateConceptChips() {
+  const container = document.getElementById('concept-chips');
+  if (!container) return;
+
+  const concepts = [
+    { name: 'heart', emoji: '❤️', color: '#EF4444' },
+    { name: 'brain', emoji: '🧠', color: '#A855F7' },
+    { name: 'cell', emoji: '🔬', color: '#10B981' },
+    { name: 'motor', emoji: '⚡', color: '#F59E0B' },
+    { name: 'atom', emoji: '⚛️', color: '#3B82F6' },
+    { name: 'dna', emoji: '🧬', color: '#EC4899' },
+    { name: 'planet', emoji: '🌍', color: '#06B6D4' },
+    { name: 'circuit', emoji: '💡', color: '#8B5CF6' },
+    { name: 'gear', emoji: '⚙️', color: '#64748B' },
+    { name: 'bridge', emoji: '🌉', color: '#78716C' },
+    { name: 'pendulum', emoji: '🔄', color: '#0EA5E9' },
+    { name: 'magnet', emoji: '🧲', color: '#DC2626' },
+    { name: 'lens', emoji: '🔎', color: '#7C3AED' },
+    { name: 'turbine', emoji: '💨', color: '#059669' },
+    { name: 'star', emoji: '⭐', color: '#EAB308' },
+    { name: 'lung', emoji: '🫁', color: '#F472B6' },
+    { name: 'eye', emoji: '👁️', color: '#2563EB' },
+    { name: 'plant', emoji: '🌿', color: '#16A34A' },
+    { name: 'spring', emoji: '🔩', color: '#94A3B8' },
+    { name: 'crystal', emoji: '💎', color: '#818CF8' },
+  ];
+
+  container.innerHTML = concepts.map(c => `
+    <button class="concept-chip" data-concept="${c.name}" style="--chip-color: ${c.color}">
+      <span class="chip-emoji">${c.emoji}</span>
+      <span class="chip-name">${c.name}</span>
+    </button>
+  `).join('');
+
+  container.addEventListener('click', (e) => {
+    const btn = e.target.closest('.concept-chip');
+    if (btn) {
+      const concept = btn.dataset.concept;
+      // Highlight selected
+      container.querySelectorAll('.concept-chip').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      _processConceptDirect(concept);
+    }
+  });
+}
+
+// ============================================================
+//  LEVEL SELECTOR
+// ============================================================
+
+function _setupLevelSelector() {
+  const container = document.getElementById('level-selector');
+  if (!container) return;
+
+  container.addEventListener('click', (e) => {
+    const btn = e.target.closest('.level-btn');
+    if (!btn) return;
+
+    container.querySelectorAll('.level-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentLevel = btn.dataset.level;
+
+    if (arSystem) arSystem.setLearnerLevel(currentLevel);
+
+    // Re-process if we have an active concept
+    if (currentVisualization) {
+      _processConceptDirect(currentVisualization.concept.name);
+    }
+  });
+}
+
+// ============================================================
+//  PIPELINE: IMAGE → VISUALIZATION
+// ============================================================
+
+async function _processImage(dataUrl) {
+  if (!isInitialized || !arSystem) {
+    console.warn('[AR Learning] System not ready');
+    return;
+  }
+
+  _showPipelineStepper();
+  _setPipelineStep('clip');
+
+  arSystem.onConceptFound = (concept) => {
+    _setPipelineStep('concept');
+    _updateConceptPanel(concept);
+  };
+
+  arSystem.onModelReady = (model3D) => {
+    _setPipelineStep('render');
+  };
+
+  const result = await arSystem.processImageToVisualization(dataUrl, currentLevel);
+
+  if (result) {
+    currentVisualization = result;
+    _displayVisualization(result);
+    _setPipelineStep('done');
+    _showLayerControls(result);
+    _updateStats();
+    store.logSession('ar_concept_visualized', 30);
+  }
+}
+
+async function _processConceptDirect(conceptName) {
+  if (!isInitialized || !arSystem) {
+    console.warn('[AR Learning] System not ready');
+    return;
+  }
+
+  _showPipelineStepper();
+  _setPipelineStep('concept');
+
+  arSystem.onConceptFound = (concept) => {
+    _updateConceptPanel(concept);
+  };
+
+  arSystem.onModelReady = () => {
+    _setPipelineStep('render');
+  };
+
+  const result = await arSystem.processConceptDirectly(conceptName, currentLevel);
+
+  if (result) {
+    currentVisualization = result;
+    _displayVisualization(result);
+    _setPipelineStep('done');
+    _showLayerControls(result);
+    _updateConceptPanel(result.concept);
+    _updateStats();
+    store.logSession('ar_concept_direct', 30);
+  }
+}
+
+// ============================================================
+//  DISPLAY VISUALIZATION IN 3D VIEWPORT
+// ============================================================
+
+function _displayVisualization(result) {
+  if (!result || !result.model || !result.model.model3D) return;
+
+  // Remove old model
+  if (currentModel) {
+    scene.remove(currentModel);
+    currentModel = null;
+  }
+
+  currentModel = result.model.model3D;
+
+  // Auto-scale model to fit viewport
+  const box = new THREE.Box3().setFromObject(currentModel);
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  if (maxDim > 0) {
+    const scale = 1.5 / maxDim;
+    currentModel.scale.multiplyScalar(scale);
+  }
+
+  // Center model
+  const center = box.getCenter(new THREE.Vector3());
+  currentModel.position.sub(center.multiplyScalar(currentModel.scale.x));
+  currentModel.position.y = 0.2;
+
+  scene.add(currentModel);
+
+  // Show canvas, hide placeholder
+  const placeholder = document.getElementById('viewport-placeholder');
+  if (placeholder) placeholder.style.display = 'none';
+  if (renderer) renderer.domElement.style.display = 'block';
+
+  // Reset camera to look at model
+  controls.target.set(0, 0.3, 0);
+  camera.position.set(0, 0.8, 2.5);
+  controls.update();
+}
+
+// ============================================================
+//  PIPELINE STEPPER UI
+// ============================================================
+
+function _showPipelineStepper() {
+  const stepper = document.getElementById('pipeline-stepper');
+  if (stepper) {
+    stepper.style.display = 'flex';
+    stepper.querySelectorAll('.pipeline-step').forEach(s => {
+      s.classList.remove('active', 'done');
+    });
+  }
+}
+
+function _setPipelineStep(step) {
+  const stepper = document.getElementById('pipeline-stepper');
+  if (!stepper) return;
+
+  const steps = ['clip', 'concept', 'model', 'layers', 'render'];
+  const targetIdx = step === 'done' ? steps.length : steps.indexOf(step);
+
+  stepper.querySelectorAll('.pipeline-step').forEach((el, i) => {
+    if (i < targetIdx) el.classList.replace('active', 'done') || el.classList.add('done');
+    else if (i === targetIdx) el.classList.add('active');
+    else { el.classList.remove('active', 'done'); }
+  });
+}
+
+// ============================================================
+//  CONCEPT INFO PANEL
+// ============================================================
+
+function _updateConceptPanel(concept) {
+  const panel = document.getElementById('concept-info-panel');
+  if (!panel || !concept) return;
+
+  panel.style.display = 'flex';
+
+  document.getElementById('concept-badge').textContent = concept.name?.[0]?.toUpperCase() || '?';
+  document.getElementById('concept-name').textContent = concept.name || '—';
+  document.getElementById('concept-domain').textContent = concept.domain || 'General';
+  document.getElementById('concept-confidence').textContent = concept.confidence
+    ? `${(concept.confidence * 100).toFixed(0)}% confidence`
+    : '';
+  document.getElementById('concept-description').textContent = concept.description || '';
+
+  // Components
+  const compEl = document.getElementById('concept-components');
+  if (compEl && concept.components) {
+    compEl.innerHTML = concept.components.map(c =>
+      `<span class="component-tag">${c.replace(/_/g, ' ')}</span>`
+    ).join('');
+  }
+}
+
+// ============================================================
+//  COGNITIVE LAYER CONTROLS
+// ============================================================
+
+function _showLayerControls(result) {
+  const panel = document.getElementById('ar-layers-panel');
+  const container = document.getElementById('layer-toggles');
+  if (!panel || !container || !result.cognitiveRepresentation) return;
+
+  panel.style.display = 'block';
+  const layers = result.cognitiveRepresentation.layers;
+
+  container.innerHTML = layers.map(layer => `
+    <label class="layer-toggle" style="--layer-color: #${(layer.color || 0x888888).toString(16).padStart(6, '0')}">
+      <input type="checkbox" data-layer="${layer.type}" checked />
+      <span class="toggle-dot"></span>
+      <span class="toggle-label">${layer.name || layer.type}</span>
+    </label>
+  `).join('');
+
+  container.addEventListener('change', (e) => {
+    if (e.target.type !== 'checkbox') return;
+    const layerType = e.target.dataset.layer;
+    const enabled = e.target.checked;
+    activeLayers[layerType] = enabled;
+    _toggleLayerVisibility(layerType, enabled);
+  });
+}
+
+function _toggleLayerVisibility(layerType, visible) {
+  if (!currentModel) return;
+
+  const prefix = layerType.toLowerCase();
+  currentModel.traverse(child => {
+    const name = (child.name || '').toLowerCase();
+    // Match group names like 'structure_outer', 'function_valves', etc.
+    if (name.startsWith(prefix.toLowerCase()) ||
+        name.startsWith(`${prefix}_`) ||
+        name.includes(`_${prefix}`)) {
+      child.visible = visible;
+    }
+  });
+}
+
+// ============================================================
+//  STATS
+// ============================================================
+
+function _updateStats() {
+  if (!arSystem) return;
+  const stats = arSystem.getSystemStats();
+
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  };
+
+  set('stat-images', stats.pipeline.imagesProcessed);
+  set('stat-concepts', stats.pipeline.conceptsIdentified);
+  set('stat-models', stats.pipeline.modelsRetrieved);
+  set('stat-time', `${stats.pipeline.avgProcessingTime.toFixed(0)}ms`);
+  set('stat-clip', stats.clip.clipAvailable ? '✓ CLIP' : '⚡ Fallback');
+  set('stat-available', stats.concepts.totalConcepts || '—');
+}
+
+// ============================================================
+//  CLEANUP
+// ============================================================
+
+export function destroyARLearning() {
+  if (animationFrameId) cancelAnimationFrame(animationFrameId);
+  if (renderer) renderer.dispose();
+  if (arSystem) arSystem.dispose();
+  currentModel = null;
+  currentVisualization = null;
+  isInitialized = false;
+}
+
+// Expose for external routing
+window.enableWebXR = () => console.log('[AR] WebXR would require HTTPS + compatible device');
+window.disableWebXR = () => console.log('[AR] No active AR session');

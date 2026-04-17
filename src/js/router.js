@@ -25,6 +25,9 @@ export class Router {
     if (route) {
       this.currentRoute = hash;
       const container = document.getElementById('page-container');
+      
+      // Clear container first
+      container.innerHTML = '';
       container.style.opacity = '0';
       container.style.transform = 'translateY(10px)';
 
