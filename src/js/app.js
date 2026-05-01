@@ -10,21 +10,48 @@ import { renderSkillBarter } from './modules/skill-barter.js';
 import { renderAnalytics } from './modules/analytics.js';
 import { renderCommunication } from './modules/communication.js';
 import { render3DLearningDashboard } from './modules/3d-dashboard-view.js';
+import { renderAuth } from './modules/auth.js';
+import { renderPeerRoom } from './modules/peer-room.js';
+import { renderCoach } from './modules/coach.js';
+import { refreshSidebarAuthUI } from './utils/platform-ui.js';
+import { getToken, requireAuthOrRedirect } from './utils/platform-api.js';
 
 // Initialize Router
 const router = new Router();
+const protectedRoute = (renderFn) => (container) => {
+  if (!requireAuthOrRedirect()) return;
+  renderFn(container);
+};
 
 // Register Routes
-router.register('/', renderHome);
-router.register('/ar-learning', renderARLearning);
-router.register('/ai-assistant', renderAIAssistant);
-router.register('/skill-barter', renderSkillBarter);
-router.register('/analytics', renderAnalytics);
-router.register('/communication', renderCommunication);
-router.register('/3d-dashboard', render3DLearningDashboard);
+router.register('/', protectedRoute(renderHome));
+router.register('/ar-learning', protectedRoute(renderARLearning));
+router.register('/ai-assistant', protectedRoute(renderAIAssistant));
+router.register('/skill-barter', protectedRoute(renderSkillBarter));
+router.register('/analytics', protectedRoute(renderAnalytics));
+router.register('/communication', protectedRoute(renderCommunication));
+router.register('/3d-dashboard', protectedRoute(render3DLearningDashboard));
+router.register('/peer', protectedRoute(renderPeerRoom));
+router.register('/coach', protectedRoute(renderCoach));
+router.register('/auth', (container) => {
+  if (getToken()) {
+    window.location.hash = '#/';
+    return;
+  }
+  renderAuth(container);
+});
 
 // Start
+if (!getToken()) {
+  window.location.hash = '#/auth';
+} else if (!window.location.hash || window.location.hash === '#/auth') {
+  window.location.hash = '#/';
+}
 router.start();
+refreshSidebarAuthUI();
+
+// Refresh sidebar auth UI on navigation (hash change)
+window.addEventListener('hashchange', () => refreshSidebarAuthUI());
 
 // Global namespace
 window.EduVerse = window.EduVerse || {};

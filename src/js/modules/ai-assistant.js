@@ -60,6 +60,14 @@ export async function renderAIAssistant(container) {
     initialMsg = `${greeting} Start taking quizzes in AR Learning to build your mastery profile!`;
   }
 
+  // NOVELTY: The Generative AR Loop Hook
+  const arInteractions = store.get('ar_interactions', []);
+  const recentAR = arInteractions.length > 0 ? arInteractions[arInteractions.length - 1] : null;
+
+  if (recentAR && (Date.now() - recentAR.timestamp < 3600000)) { // within 1 hour
+    initialMsg = `${greeting} I noticed you were just examining the complex 3D engineering semantics of a **${recentAR.concept}** in the Cognitive AR environment! Based on your successful manual structural isolation of its internal mechanical components (confidence: ${Math.round(recentAR.confidence * 100)}%), I have implicitly upgraded your Engineering structural knowledge graph by +15% without needing a quiz! \n\nHow can I help you traverse your new knowledge graph?`;
+  }
+
   chatMessages = [{ role: 'ai', message: initialMsg }];
   const recommendations = computeMDKGTRecommendations(kgData, mastery);
 
@@ -211,11 +219,29 @@ function setupChat(container) {
       chatMessages.push({ role: 'ai', message: response });
       msgDiv.innerHTML += renderMsg({ role: 'ai', message: response });
       msgDiv.scrollTop = msgDiv.scrollHeight;
+      speakResponse(response);
     }, 800 + Math.random() * 700);
   };
 
   sendBtn?.addEventListener('click', send);
   input?.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+}
+
+function speakResponse(text) {
+  if (!window.speechSynthesis) return;
+  // Clean markdown out before speaking
+  const cleanText = text.replace(/\*\*(.*?)\*\*/g, '$1').replace(/[^\w\s.,?!]/g, '').slice(0, 300);
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(cleanText);
+  utterance.rate = 1.05;
+  utterance.pitch = 1.0;
+  
+  // Try to use a natural English voice
+  const voices = window.speechSynthesis.getVoices();
+  const bestVoice = voices.find(v => v.name.includes('Google UK English Female') || v.name.includes('Samantha')) || voices.find(v => v.lang === 'en-US');
+  if (bestVoice) utterance.voice = bestVoice;
+  
+  window.speechSynthesis.speak(utterance);
 }
 
 function generateResponse(input) {

@@ -64,9 +64,14 @@ class DataStore {
       this.set('initialized', true); 
       this.set('skills_offered', []);
       this.set('skills_seeking', []);
-      this.set('barter_listings', this._seedBarterListings());
+      this.set('barter_listings', []);
       this.set('barter_exchanges', []);
-      this.set('quiz_scores', []);
+      this.set('quiz_scores', [
+        { subject: 'math', topic: 'Calculus Fundamentals', score: 35, maxScore: 100, date: Date.now() - 604800000 },
+        { subject: 'cs', topic: 'Data Structures and Algorithms', score: 85, maxScore: 100, date: Date.now() - 345600000 },
+        { subject: 'cs', topic: 'Object Oriented Programming', score: 92, maxScore: 100, date: Date.now() - 172800000 },
+        { subject: 'physics', topic: 'Kinematics', score: 40, maxScore: 100, date: Date.now() - 86400000 }
+      ]);
       this.set('session_log', []);
       this.set('daily_activity', {});
       this.set('communication_sessions', []);
@@ -149,6 +154,25 @@ class DataStore {
   }
 
   getAllMastery() { return this.get('knowledge_mastery', {}); }
+
+  // --- Implicit AR Learning Telemetry (The Linkage) ---
+  recordImplicitARInteraction(concept, confidence) {
+    const interactions = this.get('ar_interactions', []);
+    interactions.push({ concept, confidence, timestamp: Date.now() });
+    this.set('ar_interactions', interactions);
+    
+    // Bridge semantic labels to curriculum nodes precisely
+    const mapping = {
+      'automobile': 'engineering', 'airplane': 'engineering', 'truck': 'engineering', 'ship': 'engineering',
+      'bird': 'biology', 'cat': 'biology', 'dog': 'biology', 'horse': 'biology', 'frog': 'biology', 'deer': 'biology'
+    };
+    const domain = mapping[concept.toLowerCase()] || 'basic_science';
+    
+    // Inject structural growth (Bump mastery by 15% implicitly)
+    const mastery = this.get('knowledge_mastery', {});
+    mastery[domain] = Math.min(1.0, (mastery[domain] || 0) + 0.15);
+    this.set('knowledge_mastery', mastery);
+  }
 
   // --- Subject Progress ---
   getSubjectProgress() { return this.get('subject_progress', this._defaultSubjectProgress()); }
@@ -406,15 +430,6 @@ class DataStore {
         { id: 'pyramid', name: 'Egyptian Pyramids', type: 'AR', mastery: 0 },
         { id: 'colosseum', name: 'Roman Colosseum', type: '3D', mastery: 0 }
       ]}
-    ];
-  }
-
-  _seedBarterListings() {
-    return [
-      { id: 'bl_seed_1', name: 'Priya Sharma', avatar: 'PS', offering: 'Python Programming', offeringLevel: 'Advanced', seeking: 'UI/UX Design', seekingLevel: 'Beginner', rating: 4.8, exchanges: 12, tags: ['Backend', 'Data Science'], color: '#7C3AED', createdAt: Date.now() - 86400000 },
-      { id: 'bl_seed_2', name: 'Rahul Verma', avatar: 'RV', offering: 'UI/UX Design', offeringLevel: 'Intermediate', seeking: 'Machine Learning', seekingLevel: 'Beginner', rating: 4.5, exchanges: 8, tags: ['Figma', 'CSS'], color: '#06B6D4', createdAt: Date.now() - 172800000 },
-      { id: 'bl_seed_3', name: 'Sneha Patel', avatar: 'SP', offering: 'Machine Learning', offeringLevel: 'Intermediate', seeking: 'Public Speaking', seekingLevel: 'Beginner', rating: 4.7, exchanges: 6, tags: ['TensorFlow', 'NLP'], color: '#10B981', createdAt: Date.now() - 259200000 },
-      { id: 'bl_seed_4', name: 'Aditya Kumar', avatar: 'AK', offering: 'Public Speaking', offeringLevel: 'Advanced', seeking: 'Web Development', seekingLevel: 'Intermediate', rating: 4.9, exchanges: 15, tags: ['Debate', 'Anchoring'], color: '#F59E0B', createdAt: Date.now() - 345600000 },
     ];
   }
 

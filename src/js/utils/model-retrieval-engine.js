@@ -7,26 +7,142 @@
  */
 
 import { proceduralModelFactory } from './procedural-model-factory.js';
+import { modelProviderAdapters } from './model-provider-adapters.js';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 export class ModelRetrievalEngine {
   constructor() {
     this.modelDatabase = new Map();
+    this.openModelIndex = [];
     this.isInitialized = false;
     this.stats = {
       modelsRetrieved: 0,
       queriesExecuted: 0,
       avgRetrievalTime: 0,
       proceduralGenerated: 0,
+      providerGenerated: 0,
+      openIndexHits: 0,
     };
+
+    this.openSourceCatalog = {
+      default: [
+        {
+          provider: 'Sketchfab',
+          license: 'CC / Editorial (varies per model)',
+          buildSearchUrl: (concept) => `https://sketchfab.com/search?type=models&q=${encodeURIComponent(concept)}`,
+        },
+        {
+          provider: 'Poly Pizza',
+          license: 'CC0 / permissive library',
+          buildSearchUrl: (concept) => `https://poly.pizza/search/${encodeURIComponent(concept)}`,
+        },
+        {
+          provider: 'Smithsonian 3D',
+          license: 'Open access subsets available',
+          buildSearchUrl: (concept) => `https://3d.si.edu/search?edan_q=${encodeURIComponent(concept)}`,
+        },
+      ],
+    };
+    this.providerAdapters = modelProviderAdapters;
+
+    this.conceptAliases = new Map([
+      ['human heart', 'heart'],
+      ['cardiac', 'heart'],
+      ['cardiac muscle', 'heart'],
+      ['heart anatomy', 'heart'],
+      ['human brain', 'brain'],
+      ['cerebrum', 'brain'],
+      ['cerebral cortex', 'brain'],
+      ['human lungs', 'lung'],
+      ['human lung', 'lung'],
+      ['lungs', 'lung'],
+      ['human eye', 'eye'],
+      ['eyeball', 'eye'],
+      ['animal cell', 'cell'],
+      ['plant cell', 'cell'],
+      ['dna helix', 'dna'],
+      ['double helix', 'dna'],
+      ['solar system', 'solar_system'],
+      ['truck', 'heavy truck'],
+      ['cargo truck', 'heavy truck'],
+      ['car', 'automobile'],
+      ['vehicle', 'automobile'],
+      ['aircraft', 'airplane'],
+      ['aeroplane', 'airplane'],
+      ['plane', 'airplane'],
+      ['bus', 'bus'],
+      ['school bus', 'bus'],
+      ['city bus', 'bus'],
+      ['boat', 'ship'],
+      ['database management system', 'database'],
+      ['database management', 'database'],
+      ['dbms', 'database'],
+      ['sql database', 'database'],
+      ['machine learning', 'machine_learning'],
+      ['ml', 'machine_learning'],
+      ['artificial intelligence', 'machine_learning'],
+      ['web server', 'web_server'],
+      ['client server', 'web_server'],
+      ['document object model', 'dom_tree'],
+      ['dom tree', 'dom_tree'],
+      ['h2o', 'water'],
+      ['water molecule', 'water'],
+      ['optical lens', 'lens'],
+      ['magnetic field', 'magnet'],
+    ]);
   }
 
   async initialize() {
     console.log('[ModelRetrieval] Initializing...');
     this.loadModelDatabase();
     this._buildSearchIndex();
+    await this.providerAdapters.initialize();
+    await this._loadOpenModelIndex();
     this.isInitialized = true;
-    console.log(`[ModelRetrieval] Ready with ${this.modelDatabase.size} concepts (procedural generation enabled)`);
+    console.log(
+      `[ModelRetrieval] Ready with ${this.modelDatabase.size} concepts and ${this.openModelIndex.length} open-model entries`
+    );
     return true;
+  }
+
+  async _loadOpenModelIndex() {
+    try {
+      const res = await fetch('/data/open-model-index.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`index http ${res.status}`);
+      const payload = await res.json();
+      const rawEntries = Array.isArray(payload?.models) ? payload.models : [];
+      this.openModelIndex = rawEntries
+        .map((entry) => this._normalizeOpenModelEntry(entry))
+        .filter(Boolean);
+      console.log(`[ModelRetrieval] Loaded open model index entries: ${this.openModelIndex.length}`);
+    } catch (error) {
+      this.openModelIndex = [];
+      console.warn('[ModelRetrieval] Open model index unavailable. Using local procedural fallback.', error);
+    }
+  }
+
+  _normalizeOpenModelEntry(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    const url = String(entry.url || '').trim();
+    const concept = this._normalizeConcept(entry.concept || '');
+    if (!url || !concept) return null;
+    const keywords = Array.isArray(entry.keywords)
+      ? entry.keywords.map((k) => this._normalizeConcept(k)).filter(Boolean)
+      : [];
+    return {
+      concept,
+      modelName: String(entry.modelName || concept),
+      domain: String(entry.domain || 'GENERAL'),
+      category: String(entry.category || 'OPEN_SOURCE'),
+      description: String(entry.description || `Open-source model for ${concept}`),
+      keywords: Array.from(new Set([concept, ...keywords])),
+      source: String(entry.source || 'Open Source'),
+      license: String(entry.license || 'See source'),
+      url,
+      previewUrl: String(entry.previewUrl || ''),
+    };
   }
 
   /**
@@ -109,6 +225,12 @@ export class ModelRetrievalEngine {
         complexity: 0.8, animated: true,
         description: 'Commercial heavy transport truck with cab, trailer, and internal engine',
       },
+      'bus': {
+        modelName: 'Passenger Bus', concept: 'bus', domain: 'AUTOMOTIVE', category: 'ENGINEERING',
+        keywords: ['bus', 'passenger', 'transport', 'vehicle', 'public transport', 'wheels', 'chassis'],
+        complexity: 0.75, animated: true,
+        description: 'Passenger transport bus with body, cabin, and chassis',
+      },
 
       // ENGINEERING & MECHANICS
       'motor': {
@@ -158,6 +280,32 @@ export class ModelRetrievalEngine {
         keywords: ['machine', 'mechanism', 'compound', 'lever', 'gear', 'industrial'],
         complexity: 0.8, animated: true,
         description: 'Compound machine combining gear and piston',
+      },
+
+      // CSE / WEB TECHNOLOGIES
+      'web_server': {
+        modelName: 'Client-Server Architecture', concept: 'web_server', domain: 'COMPUTER_SCIENCE', category: 'WEB_TECH',
+        keywords: ['server', 'client', 'web', 'http', 'request', 'response', 'network', 'cloud', 'routing', 'architecture'],
+        complexity: 0.9, animated: true,
+        description: 'Multi-node client-server topology representing asynchronous request lifecycles.',
+      },
+      'database': {
+        modelName: 'Relational Database', concept: 'database', domain: 'COMPUTER_SCIENCE', category: 'DATA_SYSTEMS',
+        keywords: ['database', 'sql', 'nosql', 'relational', 'disk', 'storage', 'data', 'lake', 'query'],
+        complexity: 0.8, animated: true,
+        description: 'Spinning memory clusters with querying pipeline visualization.',
+      },
+      'dom_tree': {
+        modelName: 'DOM Hierarchy Tree', concept: 'dom_tree', domain: 'COMPUTER_SCIENCE', category: 'WEB_TECH',
+        keywords: ['dom', 'html', 'javascript', 'tree', 'node', 'element', 'document', 'object', 'model'],
+        complexity: 0.85, animated: true,
+        description: 'Holographic hierarchy of the Document Object Model translating raw HTML.',
+      },
+      'machine_learning': {
+        modelName: 'Machine Learning Pipeline', concept: 'machine_learning', domain: 'COMPUTER_SCIENCE', category: 'AI',
+        keywords: ['machine learning', 'ml', 'ai', 'model', 'training', 'inference', 'dataset', 'feature', 'neural'],
+        complexity: 0.85, animated: true,
+        description: 'Data-to-model pipeline with training and inference flow visualization.',
       },
 
       // CHEMISTRY
@@ -279,38 +427,77 @@ export class ModelRetrievalEngine {
    * @param {string} concept - e.g. 'electric motor', 'heart', 'atom'
    * @returns {object} - model metadata + Three.js Group from procedural factory
    */
-  async retrieveModelForConcept(concept, learnerLevel = 'INTERMEDIATE') {
+  async retrieveModelForConcept(concept, learnerLevel = 'INTERMEDIATE', generative_blueprint = null, sourceImageData = null) {
     const startTime = Date.now();
     this.stats.queriesExecuted++;
-    const normalizedConcept = concept.toLowerCase().trim();
+    const normalizedConcept = this._normalizeConcept(concept);
+    const canonicalConcept = this._resolveCanonicalConcept(normalizedConcept);
+
+    // Strategy 0: external provider adapters (hybrid/API-first when configured)
+    const providerResult = await this._tryProviderModel(canonicalConcept, sourceImageData, learnerLevel, startTime);
+    if (providerResult) return providerResult;
 
     // Strategy 1: Direct match
-    if (this.modelDatabase.has(normalizedConcept)) {
-      return this._buildResult(normalizedConcept, 1.0, learnerLevel, startTime);
+    if (this.modelDatabase.has(canonicalConcept)) {
+      return await this._buildResult(canonicalConcept, 1.0, learnerLevel, startTime, generative_blueprint, sourceImageData);
     }
 
     // Strategy 2: Keyword search
-    const keywordMatch = this._searchByKeywords(normalizedConcept);
+    const keywordMatch = this._searchByKeywords(canonicalConcept);
     if (keywordMatch) {
-      return this._buildResult(keywordMatch.key, keywordMatch.score, learnerLevel, startTime);
+      return await this._buildResult(keywordMatch.key, keywordMatch.score, learnerLevel, startTime, generative_blueprint, sourceImageData);
     }
 
     // Strategy 3: Fuzzy string similarity
-    const fuzzyMatch = this._fuzzySearch(normalizedConcept);
+    const fuzzyMatch = this._fuzzySearch(canonicalConcept);
     if (fuzzyMatch && fuzzyMatch.score > 0.3) {
-      return this._buildResult(fuzzyMatch.key, fuzzyMatch.score, learnerLevel, startTime);
+      return await this._buildResult(fuzzyMatch.key, fuzzyMatch.score, learnerLevel, startTime, generative_blueprint, sourceImageData);
+    }
+
+    // Strategy 4: Dynamic open-source GLB index (data-driven, no code hardcoding per concept)
+    const openMatch = this._searchOpenModelIndex(canonicalConcept);
+    if (openMatch) {
+      this.stats.openIndexHits++;
+      return await this._buildOpenModelResult(openMatch, learnerLevel, startTime);
     }
 
     // Fallback: return generic model
     console.warn(`[ModelRetrieval] No match found for "${concept}", using generic model`);
-    return this._buildGenericResult(concept, learnerLevel, startTime);
+    return await this._buildGenericResult(canonicalConcept, learnerLevel, startTime, generative_blueprint, sourceImageData);
+  }
+
+  _normalizeConcept(concept) {
+    return (concept || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, ' ')
+      .replace(/\s+/g, ' ');
+  }
+
+  _resolveCanonicalConcept(query) {
+    if (!query) return '';
+    if (this.modelDatabase.has(query)) return query;
+    if (this.conceptAliases.has(query)) return this.conceptAliases.get(query);
+
+    for (const [alias, canonical] of this.conceptAliases) {
+      if (query.includes(alias)) return canonical;
+    }
+
+    const spaceToUnderscore = query.replace(/\s+/g, '_');
+    if (this.modelDatabase.has(spaceToUnderscore)) return spaceToUnderscore;
+
+    return query;
   }
 
   /**
    * Search by keyword overlap
    */
   _searchByKeywords(query) {
-    const queryWords = query.split(/[\s,_-]+/).filter(w => w.length > 2);
+    const queryWords = query
+      .split(/[\s,_-]+/)
+      .map((w) => w.trim())
+      .filter((w) => w.length > 2);
+    if (queryWords.length === 0) return null;
     const scores = new Map();
 
     queryWords.forEach(word => {
@@ -331,13 +518,26 @@ export class ModelRetrievalEngine {
       }
     });
 
+    for (const [key, model] of this.modelDatabase) {
+      const keyText = key.toLowerCase();
+      const modelName = model.modelName.toLowerCase();
+      if (query === keyText || query === modelName) {
+        scores.set(key, (scores.get(key) || 0) + 4.0);
+      } else if (query.includes(keyText) || keyText.includes(query)) {
+        scores.set(key, (scores.get(key) || 0) + 2.0);
+      }
+    }
+
     if (scores.size === 0) return null;
 
     // Find best match
     let bestKey = null, bestScore = 0;
     for (const [key, score] of scores) {
       const normalized = score / queryWords.length;
-      if (normalized > bestScore) {
+      if (
+        normalized > bestScore ||
+        (normalized === bestScore && bestKey && key.localeCompare(bestKey) < 0)
+      ) {
         bestScore = normalized;
         bestKey = key;
       }
@@ -384,17 +584,180 @@ export class ModelRetrievalEngine {
     return trigrams;
   }
 
+  _searchOpenModelIndex(query) {
+    if (!Array.isArray(this.openModelIndex) || this.openModelIndex.length === 0) return null;
+    const normalizedQuery = this._normalizeConcept(query);
+    if (!normalizedQuery) return null;
+
+    let best = null;
+    let bestScore = 0;
+    for (const entry of this.openModelIndex) {
+      const targets = [entry.concept, entry.modelName.toLowerCase(), ...(entry.keywords || [])];
+      let localScore = 0;
+      for (const target of targets) {
+        const t = this._normalizeConcept(target);
+        if (!t) continue;
+        if (normalizedQuery === t) localScore = Math.max(localScore, 1.0);
+        else if (normalizedQuery.includes(t) || t.includes(normalizedQuery)) localScore = Math.max(localScore, 0.85);
+        else {
+          const sim = this._jaccardTokenSimilarity(normalizedQuery, t);
+          localScore = Math.max(localScore, sim);
+        }
+      }
+      if (localScore > bestScore) {
+        bestScore = localScore;
+        best = entry;
+      }
+    }
+    return bestScore >= 0.45 ? { ...best, confidence: bestScore } : null;
+  }
+
+  async _tryProviderModel(concept, sourceImageData, learnerLevel, startTime) {
+    try {
+      const generated = await this.providerAdapters.tryGenerateFromProviders({
+        concept,
+        imageData: sourceImageData,
+        timeoutMs: 20000,
+      });
+      if (!generated?.url) return null;
+      return await this._buildProviderResult(generated, concept, learnerLevel, startTime);
+    } catch (error) {
+      console.warn('[ModelRetrieval] Provider generation unavailable, continuing fallback chain:', error);
+      return null;
+    }
+  }
+
+  _jaccardTokenSimilarity(a, b) {
+    const aSet = new Set(a.split(/[\s_-]+/).filter(Boolean));
+    const bSet = new Set(b.split(/[\s_-]+/).filter(Boolean));
+    if (aSet.size === 0 || bSet.size === 0) return 0;
+    const intersection = [...aSet].filter((token) => bSet.has(token)).length;
+    const union = new Set([...aSet, ...bSet]).size;
+    return union > 0 ? intersection / union : 0;
+  }
+
+  async _buildOpenModelResult(openEntry, learnerLevel, startTime) {
+    const gltf = await this._loadExternalGLTF(openEntry.url);
+    const model3D = gltf.scene;
+    this.stats.modelsRetrieved++;
+    this.stats.avgRetrievalTime = this.stats.avgRetrievalTime * 0.8 + (Date.now() - startTime) * 0.2;
+    return {
+      modelName: openEntry.modelName,
+      concept: openEntry.concept,
+      domain: openEntry.domain,
+      category: openEntry.category,
+      keywords: openEntry.keywords,
+      complexity: 0.75,
+      animated: true,
+      description: openEntry.description,
+      confidence: openEntry.confidence,
+      model3D,
+      retrievalTime: Date.now() - startTime,
+      generationMethod: 'open-source-index-glb',
+      modelSource: openEntry.source,
+      openSourceAlternatives: this._getOpenSourceAlternatives(openEntry.concept),
+      license: openEntry.license,
+      previewUrl: openEntry.previewUrl,
+    };
+  }
+
+  async _buildProviderResult(providerEntry, concept, learnerLevel, startTime) {
+    const gltf = await this._loadExternalGLTF(providerEntry.url);
+    const model3D = gltf.scene;
+    this.stats.modelsRetrieved++;
+    this.stats.providerGenerated++;
+    this.stats.avgRetrievalTime = this.stats.avgRetrievalTime * 0.8 + (Date.now() - startTime) * 0.2;
+    return {
+      modelName: providerEntry.modelName || concept,
+      concept,
+      domain: providerEntry.domain || 'GENERAL',
+      category: providerEntry.category || 'EXTERNAL',
+      keywords: providerEntry.keywords || [concept],
+      complexity: 0.8,
+      animated: true,
+      description: providerEntry.description || `Generated model for ${concept}`,
+      confidence: 0.92,
+      model3D,
+      retrievalTime: Date.now() - startTime,
+      generationMethod: 'external-provider-glb',
+      modelSource: providerEntry.source || providerEntry.provider || 'External Provider',
+      openSourceAlternatives: this._getOpenSourceAlternatives(concept),
+      license: providerEntry.license || 'Provider-defined',
+      previewUrl: providerEntry.previewUrl || '',
+    };
+  }
+
+  _getOpenSourceAlternatives(concept) {
+    const entries = this.openSourceCatalog.default || [];
+    return entries.map(entry => ({
+      provider: entry.provider,
+      license: entry.license,
+      searchUrl: entry.buildSearchUrl(concept),
+    }));
+  }
+
   /**
-   * Build result with procedural 3D model
+   * Build result and dynamically inject High-Fidelity CAD models
    */
-  _buildResult(conceptKey, confidence, learnerLevel, startTime) {
+  async _buildResult(conceptKey, confidence, learnerLevel, startTime, generative_blueprint = null, sourceImageData = null) {
     const modelData = this.modelDatabase.get(conceptKey);
-    
-    // Generate procedural 3D model
     let model3D = null;
-    if (proceduralModelFactory.hasConcept(conceptKey)) {
-      model3D = proceduralModelFactory.generateModel(conceptKey, learnerLevel);
-      this.stats.proceduralGenerated++;
+    let method = 'procedural';
+
+    try {
+      // Phase 1: Try loading a high-fidelity external .GLB CAD file
+      const url = `/models/${conceptKey.replace(' ', '_')}.glb`;
+
+      const gltf = await this._loadExternalGLTF(url);
+      model3D = gltf.scene;
+      
+      // ==========================================
+      // HEURISTIC SPATIAL CLASSIFIER FOR RAW GLB
+      // ==========================================
+      const boundingBox = new THREE.Box3().setFromObject(model3D);
+      const center = boundingBox.getCenter(new THREE.Vector3());
+      const maxVolume = boundingBox.getSize(new THREE.Vector3()).lengthSq();
+
+      model3D.traverse((child) => {
+        if (child.isMesh) {
+          const n = child.name.toLowerCase();
+          
+          // Calculate volumetric parameters to guess component purpose
+          child.geometry.computeBoundingBox();
+          let vol = 0;
+          if (child.geometry.boundingBox) {
+             vol = child.geometry.boundingBox.getSize(new THREE.Vector3()).lengthSq();
+          }
+           
+          // Semantic & Spatial Injection
+          if (n.includes('body') || n.includes('chassis') || n.includes('hull') || vol > (maxVolume * 0.4)) {
+              child.name = 'structure_geom_' + child.name; // Tag as outer structure
+              child.material = new THREE.MeshPhysicalMaterial({
+                  color: window.extractedDominantColor ? window.extractedDominantColor : 0xcccccc,
+                  transmission: 0.9, opacity: 0.25, transparent: true,
+                  roughness: 0.1, metalness: 0.9, clearcoat: 1.0, side: THREE.DoubleSide
+              });
+          } else if (n.includes('engine') || n.includes('motor') || n.includes('tire') || n.includes('wheel') || vol < (maxVolume * 0.1)) {
+              child.name = 'function_internal_' + child.name; // Tag as functioning internal
+          } else {
+              child.name = 'interaction_node_' + child.name; // Fallback to interaction layer
+          }
+        }
+      });
+      method = 'glb-heuristic-classified';
+      model3D.userData.animationData = { type: 'wiggle', rate: 1.0, amplitude: 0.05 };
+      console.log(`[ModelRetrieval] Successfully loaded and classified High-Fidelity CAD for ${conceptKey}`);
+      
+    } catch (e) {
+      console.warn('[ModelRetrieval] No local GLB found. Spawning Generative Mathematical Geometry for:', conceptKey);
+      
+      // Removed Meshy API Prompt as per user constraint.
+      // Phase 3: Fallback directly to the mathematical CSG L-System
+      if (proceduralModelFactory.hasConcept(conceptKey)) {
+          model3D = await proceduralModelFactory.generateModel(conceptKey, learnerLevel, generative_blueprint, sourceImageData);
+          this.stats.proceduralGenerated++;
+          method = 'procedural-csg';
+      }
     }
 
     this.stats.modelsRetrieved++;
@@ -405,12 +768,73 @@ export class ModelRetrievalEngine {
       confidence,
       model3D,
       retrievalTime: Date.now() - startTime,
-      generationMethod: 'procedural',
+      generationMethod: method,
+      modelSource: method.startsWith('glb') ? 'local-glb' : 'procedural',
+      openSourceAlternatives: this._getOpenSourceAlternatives(modelData.concept || conceptKey),
     };
   }
 
-  _buildGenericResult(concept, learnerLevel, startTime) {
-    const model3D = proceduralModelFactory.generateModel(concept, learnerLevel);
+  _loadExternalGLTF(url) {
+    return new Promise((resolve, reject) => {
+      const loader = new GLTFLoader();
+      const dracoLoader = new DRACOLoader();
+      dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+      loader.setDRACOLoader(dracoLoader);
+      loader.load(url, resolve, undefined, reject);
+    });
+  }
+
+  async _spawnMeshyModel(concept, apiKey) {
+    // 1. Initiate Task
+    const startRes = await fetch('https://api.meshy.ai/v2/text-to-3d', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        mode: "preview",
+        prompt: `A highly detailed, isolated 3D model of ${concept}, suitable for academic simulation, solid white background`,
+        art_style: "realistic",
+        should_remesh: true
+      })
+    });
+
+    if (!startRes.ok) {
+       const errTxt = await startRes.text();
+       throw new Error("Failed to start Mesh Task: " + startRes.status + " " + errTxt);
+    }
+    
+    const startData = await startRes.json();
+    const taskId = startData.result;
+
+    if (!taskId) throw new Error("No Task ID returned");
+
+    // 2. Poll Task
+    return new Promise((resolve, reject) => {
+       const poll = async () => {
+          const checkRes = await fetch(`https://api.meshy.ai/v2/text-to-3d/${taskId}`, {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
+          });
+          const checkData = await checkRes.json();
+
+          if (checkData.status === 'SUCCEEDED') {
+              resolve(checkData.model_urls.glb);
+          } else if (checkData.status === 'FAILED') {
+              reject(new Error("Meshy failed to generate concept: " + checkData.task_error?.message));
+          } else {
+              // IN_PROGRESS or PENDING -- update UI with progress if possible
+              const el = document.getElementById('ar-loading');
+              if (el) el.innerHTML = `Spawning AI 3D Model...<br><span style="font-size:12px">Progress: ${checkData.progress || 0}%</span>`;
+              setTimeout(poll, 4000); // Check every 4 seconds
+          }
+       };
+       setTimeout(poll, 3000);
+    });
+  }
+
+  async _buildGenericResult(concept, learnerLevel, startTime, generative_blueprint = null, sourceImageData = null) {
+    const model3D = await proceduralModelFactory.generateModel(concept, learnerLevel, generative_blueprint, sourceImageData);
     this.stats.modelsRetrieved++;
     this.stats.proceduralGenerated++;
 
@@ -427,6 +851,8 @@ export class ModelRetrievalEngine {
       model3D,
       retrievalTime: Date.now() - startTime,
       generationMethod: 'generic',
+      modelSource: 'procedural-generic',
+      openSourceAlternatives: this._getOpenSourceAlternatives(concept),
     };
   }
 

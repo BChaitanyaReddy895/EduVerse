@@ -7,6 +7,50 @@ export class ConceptMappingEngine {
   constructor() {
     this.conceptDatabase = new Map();
     this.domainKnowledgeBase = {};
+    this.conceptAliases = new Map([
+      // Anatomy / biology
+      ['human heart', 'heart'],
+      ['cardiac muscle', 'heart'],
+      ['human brain', 'brain'],
+      ['cerebral cortex', 'brain'],
+      ['human lung', 'lung'],
+      ['lungs', 'lung'],
+      ['human eye', 'eye'],
+      ['eyeball', 'eye'],
+      ['animal cell', 'cell'],
+      ['plant cell', 'cell'],
+      ['dna helix', 'dna'],
+      ['double helix', 'dna'],
+
+      // Engineering / transport
+      ['electric motor', 'motor'],
+      ['engine motor', 'motor'],
+      ['aircraft', 'airplane'],
+      ['aeroplane', 'airplane'],
+      ['plane', 'airplane'],
+      ['car', 'automobile'],
+      ['vehicle', 'automobile'],
+      ['truck', 'heavy truck'],
+      ['cargo truck', 'heavy truck'],
+      ['boat', 'ship'],
+
+      // Science / physics / chemistry
+      ['h2o', 'water'],
+      ['water molecule', 'water'],
+      ['atom model', 'atom'],
+      ['molecular structure', 'molecule'],
+      ['magnetic field', 'magnet'],
+      ['convex lens', 'lens'],
+      ['optical lens', 'lens'],
+      ['elastic spring', 'spring'],
+
+      // Astronomy / structures / CS
+      ['solar system', 'solar_system'],
+      ['dom tree', 'dom_tree'],
+      ['document object model', 'dom_tree'],
+      ['web server', 'web_server'],
+      ['client server', 'web_server'],
+    ]);
     this.isInitialized = false;
     this.stats = {
       conceptsMapped: 0,
@@ -364,9 +408,11 @@ export class ConceptMappingEngine {
    * Look up concept by its label string (same as name in this system)
    */
   getConceptByLabel(label) {
-    const normalized = label.toLowerCase().trim();
-    const data = this.conceptDatabase.get(normalized);
-    if (data) return { concept: normalized, ...data };
+    const normalized = this._normalizeLabel(label);
+    const aliased = this._resolveAlias(normalized);
+    const key = aliased || normalized;
+    const data = this.conceptDatabase.get(key);
+    if (data) return { concept: key, ...data };
     // Fuzzy match
     for (const [key, value] of this.conceptDatabase) {
       if (key.includes(normalized) || normalized.includes(key)) {
@@ -381,6 +427,24 @@ export class ConceptMappingEngine {
    */
   getConceptByName(name) {
     return this.getConceptByLabel(name);
+  }
+
+  _normalizeLabel(label) {
+    return String(label || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, ' ')
+      .replace(/\s+/g, ' ');
+  }
+
+  _resolveAlias(normalizedLabel) {
+    if (!normalizedLabel) return null;
+    if (this.conceptDatabase.has(normalizedLabel)) return normalizedLabel;
+    if (this.conceptAliases.has(normalizedLabel)) return this.conceptAliases.get(normalizedLabel);
+    for (const [alias, target] of this.conceptAliases) {
+      if (normalizedLabel.includes(alias)) return target;
+    }
+    return null;
   }
 
   /**

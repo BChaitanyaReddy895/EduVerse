@@ -1,0 +1,20 @@
+{
+  "fuselage": "The main body of the aircraft, holding passenger and cargo payloads while offering aerodynamic structure.",
+  "wing": "Generates lift by utilizing aerodynamic pressure differences as the vehicle thrusts forward.",
+  "tail": "Provides essential stability and directional control during atmospheric flight.",
+  "engine": "Power unit: Draws in air, compresses it, ignites fuel, and generates massive forward thrust or kinetic energy.",
+  "cockpit": "The control center where operators manage navigation, communication, and mechanical systems.",
+  "chassis": "The structural framework that supports the entire vehicle load and mounting points.",
+  "tire": "Provides traction, shock absorption, and directional friction against the road surface.",
+  "wheel": "Provides rotational physics against the surface to create forward momentum.",
+  "transmission": "Adapts the output of the engine to the drive wheels using complex gear ratios.",
+  "cab": "The operator cabin protecting the driver and housing vehicle telemetry systems.",
+  "trailer": "A massive rear enclosure designed strictly for towing high volumes of physical freight.",
+  "hull": "The watertight body of the ship that displaces fluid to create buoyancy.",
+  "deck": "The primary horizontal surface above the hull for operational navigation and payload mounting.",
+  "propeller": "Converts rotational motion from the engine into hydraulic thrust to push the vessel forward.",
+  "glass": "Transparent shielding providing aerodynamic efficiency while retaining operator visibility.",
+  "door": "Physical hermetic sealing barriers allowing payload access.",
+  "roof": "Overhead structural layer protecting internal components from physics/weather.",
+  "seat": "Operator restraint systems designed for high-g physical protection."
+}

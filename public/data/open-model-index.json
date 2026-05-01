@@ -1,0 +1,61 @@
+{
+  "version": "1.0.0",
+  "description": "Data-driven open-source model registry. Add new entries here without code changes.",
+  "models": [
+    {
+      "concept": "airplane",
+      "modelName": "Airplane GLB",
+      "domain": "ENGINEERING",
+      "category": "AERONAUTICS",
+      "description": "Open-source airplane model",
+      "keywords": ["plane", "aircraft", "jet"],
+      "source": "Local Open Model Library",
+      "license": "Provided by project assets",
+      "url": "/models/airplane.glb"
+    },
+    {
+      "concept": "automobile",
+      "modelName": "Automobile GLB",
+      "domain": "ENGINEERING",
+      "category": "AUTOMOTIVE",
+      "description": "Open-source automobile model",
+      "keywords": ["car", "vehicle", "sedan"],
+      "source": "Local Open Model Library",
+      "license": "Provided by project assets",
+      "url": "/models/automobile.glb"
+    },
+    {
+      "concept": "heavy truck",
+      "modelName": "Truck GLB",
+      "domain": "ENGINEERING",
+      "category": "AUTOMOTIVE",
+      "description": "Open-source heavy truck model",
+      "keywords": ["truck", "cargo", "lorry", "bus"],
+      "source": "Local Open Model Library",
+      "license": "Provided by project assets",
+      "url": "/models/truck.glb"
+    },
+    {
+      "concept": "bird",
+      "modelName": "Bird GLB",
+      "domain": "BIOLOGY",
+      "category": "ZOOLOGY",
+      "description": "Open-source bird model",
+      "keywords": ["avian", "animal", "wings"],
+      "source": "Local Open Model Library",
+      "license": "Provided by project assets",
+      "url": "/models/bird.glb"
+    },
+    {
+      "concept": "horse",
+      "modelName": "Horse GLB",
+      "domain": "BIOLOGY",
+      "category": "ZOOLOGY",
+      "description": "Open-source horse model",
+      "keywords": ["animal", "equine"],
+      "source": "Local Open Model Library",
+      "license": "Provided by project assets",
+      "url": "/models/horse.glb"
+    }
+  ]
+}

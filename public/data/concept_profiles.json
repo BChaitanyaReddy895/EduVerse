@@ -1,0 +1,70 @@
+{
+  "version": "2.0.0",
+  "core_visual_concepts": [
+    "airplane",
+    "automobile",
+    "ship",
+    "heavy truck",
+    "turbine",
+    "motor",
+    "gear"
+  ],
+  "curated_profiles": {
+    "airplane": {
+      "min_cosine": 0.24,
+      "min_gap": 0.02,
+      "min_visual": 0.12,
+      "temperature": 0.12,
+      "source": "curated"
+    },
+    "automobile": {
+      "min_cosine": 0.24,
+      "min_gap": 0.02,
+      "min_visual": 0.12,
+      "temperature": 0.12,
+      "source": "curated"
+    },
+    "ship": {
+      "min_cosine": 0.24,
+      "min_gap": 0.02,
+      "min_visual": 0.12,
+      "temperature": 0.12,
+      "source": "curated"
+    },
+    "heavy truck": {
+      "min_cosine": 0.24,
+      "min_gap": 0.02,
+      "min_visual": 0.12,
+      "temperature": 0.12,
+      "source": "curated"
+    },
+    "turbine": {
+      "min_cosine": 0.2,
+      "min_gap": 0.01,
+      "min_visual": 0.1,
+      "temperature": 0.14,
+      "source": "curated"
+    },
+    "motor": {
+      "min_cosine": 0.2,
+      "min_gap": 0.01,
+      "min_visual": 0.1,
+      "temperature": 0.14,
+      "source": "curated"
+    },
+    "gear": {
+      "min_cosine": 0.2,
+      "min_gap": 0.01,
+      "min_visual": 0.1,
+      "temperature": 0.14,
+      "source": "curated"
+    }
+  },
+  "fallback": {
+    "min_cosine": 0.22,
+    "min_gap": 0.0,
+    "min_visual": 0.1,
+    "temperature": 0.18,
+    "source": "fallback"
+  }
+}

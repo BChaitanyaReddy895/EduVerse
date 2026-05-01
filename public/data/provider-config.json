@@ -1,0 +1,29 @@
+{
+  "enabled": true,
+  "providers": [
+    {
+      "name": "AutoOpenModelWikidataCommons",
+      "type": "json_glb_endpoint",
+      "enabled": true,
+      "priority": 1,
+      "endpoint": "http://127.0.0.1:5001/api/models/auto",
+      "license": "Wikimedia Commons file license (varies)"
+    },
+    {
+      "name": "LocalTextTo3DProxy",
+      "type": "json_glb_endpoint",
+      "enabled": false,
+      "priority": 1,
+      "endpoint": "http://127.0.0.1:5010/api/text-to-3d",
+      "license": "Provider-defined"
+    },
+    {
+      "name": "StlToGlbConverter",
+      "type": "json_glb_endpoint",
+      "enabled": true,
+      "priority": 3,
+      "endpoint": "http://127.0.0.1:5001/api/models/convert-stl",
+      "license": "User-supplied STL URL (respect source license)"
+    }
+  ]
+}

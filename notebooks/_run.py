@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import argparse
+from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.metrics import accuracy_score, f1_score
@@ -8,14 +10,22 @@ from imblearn.over_sampling import SMOTE
 import warnings
 warnings.filterwarnings('ignore')
 
+parser = argparse.ArgumentParser(description='Run EWGH evaluation on xAPI dataset.')
+parser.add_argument('--include-rf', action='store_true', help='Include Random Forest baseline in output (appendix only).')
+args = parser.parse_args()
+
 # 1. Load data
 try:
     df_xapi = pd.read_csv('xAPI-Edu-Data.csv')
 except FileNotFoundError:
-    import urllib.request
-    print('Downloading dataset for local testing...')
-    urllib.request.urlretrieve('https://raw.githubusercontent.com/raghadaloraini/xAPI-Edu-Data/master/xAPI-Edu-Data.csv', 'xAPI-Edu-Data.csv')
-    df_xapi = pd.read_csv('xAPI-Edu-Data.csv')
+    candidate = Path(__file__).resolve().parents[1] / 'student+performance' / 'student' / 'xAPI-Edu-Data.csv'
+    if candidate.exists():
+        print(f'Loading local dataset: {candidate}')
+        df_xapi = pd.read_csv(candidate)
+    else:
+        raise FileNotFoundError(
+            "xAPI-Edu-Data.csv not found in notebooks/ or student+performance/student/."
+        )
 
 # 2. Prepare data
 le_class = LabelEncoder()
@@ -23,7 +33,8 @@ y_all = le_class.fit_transform(df_xapi['Class'])
 groups_all = LabelEncoder().fit_transform(df_xapi['gender'].astype(str))
 
 cat_cols = ['gender', 'NationalITy', 'PlaceofBirth', 'StageID', 'GradeID', 'SectionID', 'Topic', 'Semester', 'Relation', 'ParentAnsweringSurvey', 'ParentschoolSatisfaction', 'StudentAbsenceDays']
-num_cols = ['raisedhands', 'VisITedResources', 'AnnoijncementsView', 'Discussion']
+announcement_col = 'AnnouncementsView' if 'AnnouncementsView' in df_xapi.columns else 'AnnoijncementsView'
+num_cols = ['raisedhands', 'VisITedResources', announcement_col, 'Discussion']
 
 # One-Hot Encoding
 df_encoded = pd.get_dummies(df_xapi[cat_cols], drop_first=True)
@@ -122,13 +133,26 @@ class EWGH:
             if e > 0 and e % 100 == 0: self.lr *= 0.8
             self.train_step(X, y, groups)
 
-print('Training Random Forest...')
-rf = RandomForestClassifier(n_estimators=100, random_state=42).fit(X_train, y_train)
 print('Training EWGH...')
 ewgh = EWGH(X_train.shape[1], len(np.unique(y_all)), hidden_dims=[128, 64], equity_lambda=0.7)
 ewgh.fit(X_train, y_train, g_train, epochs=400)
 
-results = {'Random Forest': rf.predict(X_test), 'EWGH (Equity 0.7)': ewgh.predict(X_test)}
+results = {'EWGH (Equity 0.7)': ewgh.predict(X_test)}
+
+if args.include_rf:
+    print('Training Random Forest baseline (appendix only)...')
+    rf = RandomForestClassifier(n_estimators=100, random_state=42).fit(X_train, y_train)
+    results['Random Forest (Baseline)'] = rf.predict(X_test)
+
 for name, pred in results.items():
     acc = accuracy_score(y_test, pred)
-    print(f'{name}: Acc={acc:.4f}')
+    f1 = f1_score(y_test, pred, average='weighted')
+    group_f1 = []
+    for g in np.unique(g_test):
+        mask = (g_test == g)
+        if mask.sum() == 0:
+            continue
+        group_f1.append(f1_score(y_test[mask], pred[mask], average='weighted', zero_division=0))
+    equity_gap = (max(group_f1) - min(group_f1)) if group_f1 else 0.0
+    equity_score = 1.0 - equity_gap
+    print(f'{name}: Acc={acc:.4f}, WeightedF1={f1:.4f}, EquityGap={equity_gap:.4f}, EquityScore={equity_score:.4f}')

@@ -16,6 +16,9 @@
   <link rel="stylesheet" href="/src/styles/skill-barter.css" />
   <link rel="stylesheet" href="/src/styles/analytics.css" />
   <link rel="stylesheet" href="/src/styles/communication.css" />
+  <link rel="stylesheet" href="/src/styles/auth.css" />
+  <link rel="stylesheet" href="/src/styles/peer-room.css" />
+  <link rel="stylesheet" href="/src/styles/coach.css" />
 </head>
 <body>
   <div id="app">
@@ -74,15 +77,50 @@
           </span>
           <span class="nav-label">Communication</span>
         </a>
+        <a href="#/peer" class="nav-link" data-route="peer" id="nav-peer">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+              <path d="M16 3.13a4 4 0 010 7.75"/>
+            </svg>
+          </span>
+          <span class="nav-label">Peer Room</span>
+        </a>
+        <a href="#/coach" class="nav-link" data-route="coach" id="nav-coach">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2a4 4 0 014 4v2a4 4 0 01-8 0V6a4 4 0 014-4z"/>
+              <path d="M6 10v1a6 6 0 0012 0v-1"/>
+              <path d="M8 21h8"/>
+              <path d="M12 17v4"/>
+            </svg>
+          </span>
+          <span class="nav-label">Avatar Coach</span>
+        </a>
+        <a href="#/auth" class="nav-link" data-route="auth" id="nav-auth">
+          <span class="nav-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/>
+              <path d="M10 17l5-5-5-5"/>
+              <path d="M15 12H3"/>
+            </svg>
+          </span>
+          <span class="nav-label">Login</span>
+        </a>
       </div>
 
       <div class="sidebar-footer">
         <div class="user-profile">
-          <div class="user-avatar">S</div>
+          <div class="user-avatar" id="sidebar-user-avatar">S</div>
           <div class="user-info">
-            <span class="user-name">Student</span>
-            <span class="user-role">Researcher</span>
+            <span class="user-name" id="sidebar-user-name">Student</span>
+            <span class="user-role" id="sidebar-user-role">Guest</span>
           </div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:10px;">
+          <button class="btn btn-secondary btn-sm" id="sidebar-auth-action" style="width:100%;">Login</button>
         </div>
       </div>
     </nav>

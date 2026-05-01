@@ -158,19 +158,44 @@ export class CLIPImageEncoder {
       if (pythonPrediction) {
         this.stats.imagesEncoded++;
         this.stats.avgEncodingTime = this.stats.avgEncodingTime * 0.8 + (Date.now() - startTime) * 0.2;
-        
+
+        const topMatches = Array.isArray(pythonPrediction.top_matches) ? pythonPrediction.top_matches : [];
+        const visualQuality = pythonPrediction.visual_quality || null;
+        const scoreByConcept = new Map();
+        topMatches.forEach(match => {
+          const label = (match?.concept || '').toLowerCase();
+          // Convert cosine similarity to [0, 1] and clamp.
+          const score = Math.max(0, Math.min(1, ((match?.cosine_similarity || 0) + 1) / 2));
+          if (label) scoreByConcept.set(label, score);
+        });
+
         let results = candidateLabels.map(label => ({
-            label: label,
-            score: (label.toLowerCase() === pythonPrediction.concept.toLowerCase() || pythonPrediction.concept.toLowerCase().includes(label.toLowerCase())) 
-                   ? Math.max(0.95, pythonPrediction.cosine_similarity) // Dominant score
-                   : 0.01
+          label,
+          score: scoreByConcept.get(label.toLowerCase()) || 0.01,
+          generative_blueprint: pythonPrediction.generative_blueprint,
+          deterministic_pass: pythonPrediction.deterministic_pass,
+          requires_concept_confirmation:
+            pythonPrediction.requires_concept_confirmation || (visualQuality && (visualQuality.quality_score ?? 0) < 0.30),
+          visual_quality: visualQuality,
         }));
-        
-        // If the python concept somehow wasn't in candidateLabels, manually insert it at 100% confidence!
-        if (!results.some(r => r.score > 0.90)) {
-            results.push({ label: pythonPrediction.concept, score: Math.max(0.95, pythonPrediction.cosine_similarity) });
-        }
-        
+
+        // Ensure top server concepts are preserved even if missing in candidate labels.
+        topMatches.forEach(match => {
+          const concept = match?.concept;
+          if (!concept) return;
+          if (!results.some(item => item.label.toLowerCase() === concept.toLowerCase())) {
+            results.push({
+              label: concept,
+              score: Math.max(0, Math.min(1, ((match?.cosine_similarity || 0) + 1) / 2)),
+              generative_blueprint: pythonPrediction.generative_blueprint,
+              deterministic_pass: pythonPrediction.deterministic_pass,
+              requires_concept_confirmation:
+                pythonPrediction.requires_concept_confirmation || (visualQuality && (visualQuality.quality_score ?? 0) < 0.30),
+              visual_quality: visualQuality,
+            });
+          }
+        });
+
         results.sort((a, b) => b.score - a.score);
         return results;
       }
@@ -214,8 +239,8 @@ export class CLIPImageEncoder {
       if (!response.ok) return null;
       
       const data = await response.json();
-      if (data.success && data.concept) {
-        console.log(`[SCCA PYTHON BRIDGE] High-Dimensional Match Retrieved: ${data.concept} (Cosine sim: ${data.cosine_similarity})`);
+      if (data.success && (data.concept || Array.isArray(data.top_matches))) {
+        console.log(`[SCCA PYTHON BRIDGE] Match Retrieved: ${data.concept || 'unknown'} (Cosine sim: ${data.cosine_similarity})`);
         return data;
       }
     } catch (e) {

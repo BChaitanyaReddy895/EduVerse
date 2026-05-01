@@ -19,13 +19,13 @@ export function renderCommunication(container) {
     <div class="communication-page">
       <div class="section-header">
         <div style="display:flex;align-items:center;gap:var(--space-3)">
-          <div class="section-title">Communication Trainer</div>
-          <span class="badge badge-primary">LCI Algorithm</span>
+          <div class="section-title">Feynman AR Simulator</div>
+          <span class="badge badge-primary">NLP Academic Grading</span>
         </div>
-        <div class="section-subtitle">Real-time Linguistic Confidence Index — scored from your actual speech and writing using Web Speech API and NLP analysis.</div>
+        <div class="section-subtitle">Test your academic comprehension by verbally explaining the 3D models you exploded in the AR Lab. </div>
       </div>
       <div style="padding:var(--space-4);background:rgba(6,182,212,0.08);border:1px solid rgba(6,182,212,0.2);border-radius:var(--radius-md);margin-bottom:var(--space-4);font-size:var(--text-sm)">
-        💡 <strong>How it works:</strong> Click 🎤 to record speech → the Web Speech API transcribes in real-time → LCI is computed from: (1) vocabulary diversity (Type-Token Ratio), (2) readability (Flesch-Kincaid), (3) filler word detection, (4) speech clarity. Or type in the writing panel for text analysis. All sessions are saved.
+        💡 <strong>How it works:</strong> Click 🎤 to record speech → explain the 3D concepts you just learned → the NLP algorithm scores your: (1) vocabulary structure (Type-Token Ratio), (2) scientific readability (Flesch-Kincaid), and (3) terminology precision.
       </div>
       <!-- LCI Score -->
       <div class="lci-section">
@@ -50,12 +50,12 @@ export function renderCommunication(container) {
       </div>
       <!-- Scenarios -->
       <div>
-        <div style="font-weight:700;font-size:var(--text-lg);margin-bottom:var(--space-4)">🎯 Practice Scenarios</div>
+        <div style="font-weight:700;font-size:var(--text-lg);margin-bottom:var(--space-4)">🎯 Academic Subjects</div>
         <div class="scenarios-grid">
-          <div class="scenario-card" data-scenario="interview"><div class="scenario-icon">💼</div><div class="scenario-name">Job Interview</div><div class="scenario-desc">Practice answering behavioral and technical interview questions clearly.</div></div>
-          <div class="scenario-card" data-scenario="presentation"><div class="scenario-icon">🎤</div><div class="scenario-name">Presentation</div><div class="scenario-desc">Deliver a 2-minute pitch on any topic. Focus on pacing and clarity.</div></div>
-          <div class="scenario-card" data-scenario="debate"><div class="scenario-icon">🗣️</div><div class="scenario-name">Debate</div><div class="scenario-desc">Argue for or against a topic. Minimize filler words and maximize vocabulary.</div></div>
-          <div class="scenario-card" data-scenario="storytelling"><div class="scenario-icon">📖</div><div class="scenario-name">Storytelling</div><div class="scenario-desc">Tell a personal story. The AI measures engagement and coherence.</div></div>
+          <div class="scenario-card" data-scenario="cs"><div class="scenario-icon"></div><div class="scenario-name">Computer Science</div><div class="scenario-desc">Explain Sorting Algorithms or Memory Management clearly.</div></div>
+          <div class="scenario-card" data-scenario="physics"><div class="scenario-icon"></div><div class="scenario-name">Physics</div><div class="scenario-desc">Explain Thermodynamics or Newton's Laws.</div></div>
+          <div class="scenario-card" data-scenario="biology"><div class="scenario-icon"></div><div class="scenario-name">Biology</div><div class="scenario-desc">Describe Cell Division using proper terminology.</div></div>
+          <div class="scenario-card" data-scenario="chemistry"><div class="scenario-icon"></div><div class="scenario-name">Chemistry</div><div class="scenario-desc">Explain fluid dynamics or molecular bonding.</div></div>
         </div>
       </div>
       <!-- Speech + Writing -->
@@ -138,9 +138,9 @@ function updateDisplay(analysis) {
 function generateFeedback(analysis) {
   const feedback = [];
   if (analysis.wordCount < 20) feedback.push({ type: 'tip', text: 'Try to say or write more to get accurate analysis. Aim for at least 50 words.' });
-  if (analysis.ttr > 0.7) feedback.push({ type: 'positive', text: `Excellent vocabulary diversity (TTR: ${analysis.ttr.toFixed(2)})! You're using a wide range of unique words.` });
-  else if (analysis.ttr > 0.5) feedback.push({ type: 'tip', text: `Good vocabulary diversity (TTR: ${analysis.ttr.toFixed(2)}). Try using synonyms to push above 0.7.` });
-  else if (analysis.ttr > 0) feedback.push({ type: 'negative', text: `Low vocabulary diversity (TTR: ${analysis.ttr.toFixed(2)}). You're repeating many words. Use a thesaurus to diversify.` });
+  if (analysis.ttr > 0.7) feedback.push({ type: 'positive', text: `Excellent scientific vocabulary diversity (TTR: ${analysis.ttr.toFixed(2)})! You are explaining concepts clearly without repeating keywords.` });
+  else if (analysis.ttr > 0.5) feedback.push({ type: 'tip', text: `Good vocabulary diversity (TTR: ${analysis.ttr.toFixed(2)}). Try using explicit structural names to push above 0.7.` });
+  else if (analysis.ttr > 0) feedback.push({ type: 'negative', text: `Low vocabulary diversity (TTR: ${analysis.ttr.toFixed(2)}). You're repeating many terms. Try the Feynman Technique to simplify.` });
 
   if (analysis.readability > 60) feedback.push({ type: 'positive', text: `Great readability score (${Math.round(analysis.readability)}). Your text is clear and accessible.` });
   else if (analysis.readability > 30) feedback.push({ type: 'tip', text: `Moderate readability (${Math.round(analysis.readability)}). Try shorter sentences for clarity.` });
@@ -168,7 +168,7 @@ function setupSpeech(container) {
 
   recognition = new SpeechRecognition();
   recognition.continuous = true;
-  recognition.interimResults = true;
+  recognition.interimResults = false; // FIXED: Stops random partial garbage text
   recognition.lang = 'en-US';
 
   recognition.onresult = (e) => {

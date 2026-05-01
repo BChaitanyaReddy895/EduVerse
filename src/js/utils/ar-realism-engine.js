@@ -14,12 +14,9 @@ import * as THREE from 'three';
 
 // Cannon-es import — gracefully degrade if not available
 let CANNON = null;
-try {
-  const cannonModule = await import('cannon-es');
-  CANNON = cannonModule;
-} catch (e) {
+import('cannon-es').then(mod => { CANNON = mod; }).catch(e => {
   console.warn('[ARRealism] cannon-es not available, physics will be simulated');
-}
+});
 
 export class ARRealismEngine {
   constructor() {

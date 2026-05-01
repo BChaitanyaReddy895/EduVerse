@@ -27,18 +27,23 @@ export function renderSkillBarter(container) {
       </div>
       <!-- Add Skill Form -->
       <div class="glass-card" id="add-skill-form">
-        <h3 style="font-weight:700;margin-bottom:var(--space-4)">➕ Add Your Skill Listing</h3>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-4)">
+          <h3 style="font-weight:700; margin:0;">➕ Add Your Skill Listing</h3>
+          <button class="btn btn-secondary btn-sm" id="auto-sync-ai" style="background:var(--bg-tertiary); border:1px solid #7C3AED; color:#7C3AED;">
+             🧠 Auto-Sync from AI Knowledge Graph
+          </button>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)">
           <div class="input-group"><label class="input-label">Your Name</label><input class="input-field" id="barter-name" placeholder="Your name" value="${store.getStudent()?.name||''}"/></div>
-          <div class="input-group"><label class="input-label">Skill You Can Teach</label><input class="input-field" id="barter-offering" placeholder="e.g. Python Programming"/></div>
+          <div class="input-group"><label class="input-label">Skill You Can Teach</label><input class="input-field" id="barter-offering" placeholder="e.g. Mechanical Engineering"/></div>
           <div class="input-group"><label class="input-label">Your Proficiency</label>
             <select class="input-field" id="barter-offer-level"><option>Beginner</option><option>Intermediate</option><option selected>Advanced</option></select>
           </div>
-          <div class="input-group"><label class="input-label">Skill You Want to Learn</label><input class="input-field" id="barter-seeking" placeholder="e.g. UI/UX Design"/></div>
+          <div class="input-group"><label class="input-label">Skill You Want to Learn</label><input class="input-field" id="barter-seeking" placeholder="e.g. Fluid Dynamics"/></div>
           <div class="input-group"><label class="input-label">Seeking Level</label>
             <select class="input-field" id="barter-seek-level"><option selected>Beginner</option><option>Intermediate</option><option>Advanced</option></select>
           </div>
-          <div class="input-group"><label class="input-label">Tags (comma-separated)</label><input class="input-field" id="barter-tags" placeholder="e.g. Backend, Data Science"/></div>
+          <div class="input-group"><label class="input-label">Tags (comma-separated)</label><input class="input-field" id="barter-tags" placeholder="e.g. Engineering, Physics" value="Engineering, STEM"/></div>
         </div>
         <button class="btn btn-primary" id="submit-listing" style="margin-top:var(--space-4)">📝 Publish Listing</button>
       </div>
@@ -121,6 +126,32 @@ function renderCyclePath(cycle, listings) {
 }
 
 function setupBarterEvents(container, listings) {
+  // Auto-Sync from AI
+  container.querySelector('#auto-sync-ai')?.addEventListener('click', () => {
+    const masteryData = store.getAllMastery();
+    const engineeringKeys = Object.keys(masteryData).filter(k => 
+      ['physics','engineering','calculus','machine_learning','algorithms','programming','basic_science','chemistry'].includes(k)
+    );
+    
+    if (engineeringKeys.length === 0) {
+      showToast('⚠️ No engineering AR interactions found. Please explore the 3D CAR model first!', 'warning');
+      return;
+    }
+
+    const sortedEng = engineeringKeys.sort((a,b) => masteryData[b] - masteryData[a]);
+    const strongest = sortedEng[0];
+    const weakest = sortedEng[sortedEng.length - 1];
+
+    const capitalize = s => s.charAt(0).toUpperCase() + s.slice(1).replace('_', ' ');
+
+    document.getElementById('barter-offering').value = 'Advanced ' + capitalize(strongest);
+    document.getElementById('barter-offer-level').value = 'Advanced';
+    document.getElementById('barter-seeking').value = 'Foundational ' + capitalize(weakest);
+    document.getElementById('barter-seek-level').value = 'Beginner';
+    
+    showToast('🧠 Form synced directly with your Engineering Neural Graph!', 'success');
+  });
+
   // Submit listing
   container.querySelector('#submit-listing')?.addEventListener('click', () => {
     const name = document.getElementById('barter-name')?.value?.trim();
@@ -132,7 +163,7 @@ function setupBarterEvents(container, listings) {
 
     if (!name || !offering || !seeking) { showToast('Please fill in name, offering, and seeking fields', 'warning'); return; }
 
-    const listing = store.addBarterListing({
+    store.addBarterListing({
       name, offering, offeringLevel, seeking, seekingLevel,
       avatar: name.split(' ').map(w=>w[0]).join('').slice(0,2),
       tags: tagsRaw ? tagsRaw.split(',').map(t=>t.trim()).filter(Boolean) : [],
